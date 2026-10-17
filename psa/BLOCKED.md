@@ -35,4 +35,28 @@ Nothing to fix in the drawings themselves — this is a cadcraft rendering limit
 Written up for upstream as `psa/pr/shx-font-width.md` (build 0.030), with the code references and a
 measured advance-width number.
 
+### M5 — multi-viewport paper-space plots show a sub-region, not the whole assembly (build 0.061)
+
+Comparing a generated general-arrangement sheet's `exportpdf` with the Reference PDF of the same
+sheet, the Reference shows the complete assembly (full enclosure, all DIN rails, components,
+balloons 1–21, dimensions) while the cadcraft plot shows a zoomed-in sub-region. This is NOT a
+generation bug: plotting the SOURCE working drawing through cadcraft shows the SAME sub-region,
+and a side-by-side confirms the generated sheet's cadcraft plot is a faithful match to the source's
+cadcraft plot (same content, same framing). The difference is cadcraft vs AutoCAD.
+
+The sheets carry several paper-space viewports (a large content window plus small detail/zoom
+windows, e.g. handles 30F5 content + 41D5 detail on the GA). AutoCAD composites them so the plotted
+PDF reads as one complete drawing; cadcraft's `exportpdf` of the layout renders the viewport windows
+differently, so the assembly appears cropped to one window's view. Reframing the content viewport
+(viewport.set to the source's viewCenter/viewHeight, or fitting the content extents) was tried and
+does not change the plot — the source plots identically — so it is not closable in the generator.
+
+Synthetic repro for upstream: a drawing with a paper-space layout containing two model-space
+viewports of different sizes over the same model content; `exportpdf` the layout and compare with
+what AutoCAD's PLOT produces for the same file. The expected behaviour is that the plotted page
+shows each viewport's window with its own model view composited onto the sheet, as AutoCAD does.
+This is the remaining reason the generated plots do not yet read as complete as the Reference, and
+it is a cadcraft paper-space plotting gap, not a drawing-content gap.
+
+
 
