@@ -105,6 +105,12 @@ $f2Last = (($f2 -split "`r?`n" | Where-Object { $_ -match '\S' } | Select-Object
 if ($LASTEXITCODE -ne 0) { Write-Host "[check-f2] FAIL  $f2Last"; $fail = 1 }
 else { Write-Host "[check-f2] PASS  $f2Last" }
 
+# M4-F3: every generated model-space block reference matches its source block/position/scale/rotation.
+$ci = (& pwsh -NoProfile -File (Join-Path $s 'compare-inserts.ps1') 2>&1 | Out-String)
+$ciLast = (($ci -split "`r?`n" | Where-Object { $_ -match '\S' } | Select-Object -Last 1))
+if ($LASTEXITCODE -ne 0) { Write-Host "[compare-inserts] FAIL  $ciLast"; $fail = 1 }
+else { Write-Host "[compare-inserts] PASS  $ciLast" }
+
 if ($fail -eq 0) {
     Write-Host 'PASS M4 pipeline (all twelve sheets generated; every check green; SCD-002 TX1 is the known D8 question)'
     exit 0

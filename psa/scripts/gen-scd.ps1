@@ -282,7 +282,21 @@ foreach ($e in $ents.entities) {
             }
             $insX = 0.0; $insY = 0.0
             if ($g.PSObject.Properties.Name -contains 'insert' -and $g.insert) { $insX = [double]$g.insert.x; $insY = [double]$g.insert.y }
-            $lines.Add('insert {"name":' + (ConvertTo-JsonStringValue -Value $blockName) + ',"at":[' + (JNum $insX) + ',' + (JNum $insY) + ']' + $attribPart + ',"layer":' + (ConvertTo-JsonStringValue -Value $e.layer) + '}')
+            # M4-F3: carry the block reference's scale and rotation. The GA balloons (_TagCircle) are
+            # placed at scale 6 in the source; without it they plot at scale 1 and are invisible next
+            # to the components. Emit scale only when it is not 1,1 and rotation only when non-zero.
+            $scalePart = ''
+            if ($g.PSObject.Properties.Name -contains 'scale' -and $g.scale) {
+                $sx = [double]$g.scale.x; $sy = [double]$g.scale.y
+                if ([Math]::Abs($sx - 1.0) -gt 1e-9 -or [Math]::Abs($sy - 1.0) -gt 1e-9) {
+                    $scalePart = ',"scale":[' + (JNum $sx) + ',' + (JNum $sy) + ']'
+                }
+            }
+            $rotPart = ''
+            if ($g.PSObject.Properties.Name -contains 'rotation' -and [Math]::Abs([double]$g.rotation) -gt 1e-9) {
+                $rotPart = ',"rotation":' + (JNum $g.rotation)
+            }
+            $lines.Add('insert {"name":' + (ConvertTo-JsonStringValue -Value $blockName) + ',"at":[' + (JNum $insX) + ',' + (JNum $insY) + ']' + $scalePart + $rotPart + $attribPart + ',"layer":' + (ConvertTo-JsonStringValue -Value $e.layer) + '}')
         }
     }
 }
