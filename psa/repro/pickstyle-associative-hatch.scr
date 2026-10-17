@@ -1,0 +1,20 @@
+# Repro for PICKSTYLE associative-hatch selection (bit 2).
+#
+# Setup (non-interactive): a 10x10 square of four lines, hatched by picking inside (the hatch
+# associates to the boundary lines):
+line {"points":[[0,0],[10,0]]}
+line {"points":[[10,0],[10,10]]}
+line {"points":[[10,10],[0,10]]}
+line {"points":[[0,10],[0,0]]}
+hatch {"points":[[5,5]]}
+
+# Then turn associative-hatch selection on and pick a boundary line:
+#   PICKSTYLE
+#   Enter new value for PICKSTYLE <1>: 2<Enter>
+#   (click the bottom line at 5,0)
+#
+# Before the fix: only the line is selected (bit 2 was stored but ignored).
+# After the fix: the line and the associative hatch made from it are both selected.
+#
+# The engine test associative_hatch_is_picked_with_its_boundary drives this (via idle_click) and
+# asserts both handles are selected with PICKSTYLE 2, and only the line with PICKSTYLE 0.
