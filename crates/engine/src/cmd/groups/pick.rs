@@ -4,7 +4,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use cadcraft_doc::Handle;
+use cadcraft_doc::{EntityKind, Handle};
 use serde_json::{Value, json};
 
 use super::super::*;
@@ -26,37 +26,52 @@ pub fn specs() -> Vec<CommandSpec> {
 const MEMBER_PICKS: &[&str] = &["groupedit", "-group"];
 
 /// `hs` plus the other members of the selectable groups they belong to (in the space being
-/// edited, visible), when PICKSTYLE has group selection on. Order: `hs` first.
+/// edited, visible) when PICKSTYLE has group selection on (bit 1), plus the associative hatches
+/// made from them when it has associative-hatch selection on (bit 2). Order: `hs` first.
 pub(crate) fn expand(s: &Session, hs: Vec<Handle>) -> Vec<Handle> {
-    if s.settings.pickstyle & 1 == 0 || hs.is_empty() || s.running.as_ref().is_some_and(|r| MEMBER_PICKS.contains(&r.id.as_str())) {
+    let pickstyle = s.settings.pickstyle;
+    if pickstyle & 3 == 0 || hs.is_empty() || s.running.as_ref().is_some_and(|r| MEMBER_PICKS.contains(&r.id.as_str())) {
         return hs;
     }
     let Ok(d) = s.doc() else { return hs };
-    if !d.groups.iter().any(|g| g.selectable) {
-        return hs;
-    }
     let space = s.space();
     let Some(store) = d.space(&space) else { return hs };
-    // Member → its selectable groups, built once (window selections may hold many objects).
-    let mut of: HashMap<Handle, Vec<usize>> = HashMap::new();
-    for (i, g) in d.groups.iter().enumerate().filter(|(_, g)| g.selectable) {
-        for m in &g.members {
-            of.entry(*m).or_default().push(i);
+    let mut seen: HashSet<Handle> = hs.iter().copied().collect();
+    let mut out = hs.clone();
+    // Group selection (bit 1): the whole selectable group of any picked member.
+    if pickstyle & 1 != 0 && d.groups.iter().any(|g| g.selectable) {
+        // Member → its selectable groups, built once (window selections may hold many objects).
+        let mut of: HashMap<Handle, Vec<usize>> = HashMap::new();
+        for (i, g) in d.groups.iter().enumerate().filter(|(_, g)| g.selectable) {
+            for m in &g.members {
+                of.entry(*m).or_default().push(i);
+            }
+        }
+        let mut done: HashSet<usize> = HashSet::new();
+        for h in &hs {
+            for gi in of.get(h).into_iter().flatten() {
+                if !done.insert(*gi) {
+                    continue;
+                }
+                let Some(g) = d.groups.get(*gi) else { continue };
+                for m in &g.members {
+                    if store.get(*m).is_some_and(|e| d.is_visible(e)) && seen.insert(*m) {
+                        out.push(*m);
+                    }
+                }
+            }
         }
     }
-    let mut seen: HashSet<Handle> = hs.iter().copied().collect();
-    let mut done: HashSet<usize> = HashSet::new();
-    let mut out = hs.clone();
-    for h in &hs {
-        for gi in of.get(h).into_iter().flatten() {
-            if !done.insert(*gi) {
+    // Associative-hatch selection (bit 2): an associative hatch whose boundary was made from a
+    // picked object comes with it.
+    if pickstyle & 2 != 0 {
+        for e in store.iter() {
+            let EntityKind::Hatch(h) = &e.kind else { continue };
+            if !h.associative {
                 continue;
             }
-            let Some(g) = d.groups.get(*gi) else { continue };
-            for m in &g.members {
-                if store.get(*m).is_some_and(|e| d.is_visible(e)) && seen.insert(*m) {
-                    out.push(*m);
-                }
+            if h.loops.iter().any(|l| l.sources.iter().any(|src| hs.contains(src))) && seen.insert(e.handle) {
+                out.push(e.handle);
             }
         }
     }
@@ -74,7 +89,7 @@ fn run(s: &mut Session, p: &Value) -> Result<Value> {
             .ok_or_else(|| bad("pickstyle", "`value` must be 0, 1, 2 or 3"))?,
     };
     s.settings.pickstyle = v;
-    let msg = format!("<Group selection {}>", if v & 1 != 0 { "on" } else { "off" });
+    let msg = format!("<Group selection {}, associative hatch {}>", if v & 1 != 0 { "on" } else { "off" }, if v & 2 != 0 { "on" } else { "off" });
     Ok(json!({ "value": v, "message": msg }))
 }
 

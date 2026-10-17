@@ -86,6 +86,30 @@ fn select_objects_prompts_pick_groups() {
 }
 
 #[test]
+fn associative_hatch_is_picked_with_its_boundary() {
+    let mut s = Session::new();
+    // A 10x10 square of four lines, hatched by picking inside (the hatch associates to the lines).
+    let mut ls = Vec::new();
+    for (a, b) in [([0.0, 0.0], [10.0, 0.0]), ([10.0, 0.0], [10.0, 10.0]), ([10.0, 10.0], [0.0, 10.0]), ([0.0, 10.0], [0.0, 0.0])] {
+        ls.push(Handle::parse_hex(s.execute("line", &json!({ "points": [a, b] })).unwrap()["handles"][0].as_str().unwrap()).unwrap());
+    }
+    let hatch = Handle::parse_hex(s.execute("hatch", &json!({ "points": [[5, 5]] })).unwrap()["handle"].as_str().unwrap()).unwrap();
+    assert!(matches!(s.doc().unwrap().entity(hatch).unwrap().kind, cadcraft_engine::doc::EntityKind::Hatch(_)));
+    // PICKSTYLE 2: associative hatch on, group selection off. Picking a boundary line also picks
+    // the hatch that was made from it.
+    s.execute("setvar", &json!({ "name": "PICKSTYLE", "value": 2 })).unwrap();
+    s.set_selection(Vec::new());
+    s.idle_click(Vec2::new(5.0, 0.0), false).unwrap(); // the bottom line
+    assert!(s.selection().contains(&ls[0]), "the picked line is selected: {:?}", s.selection());
+    assert!(s.selection().contains(&hatch), "the associative hatch comes with it: {:?}", s.selection());
+    // PICKSTYLE 0: picking the line alone does not bring the hatch.
+    s.execute("setvar", &json!({ "name": "PICKSTYLE", "value": 0 })).unwrap();
+    s.set_selection(Vec::new());
+    s.idle_click(Vec2::new(5.0, 0.0), false).unwrap();
+    assert_eq!(s.selection(), vec![ls[0]], "no hatch expansion with PICKSTYLE 0");
+}
+
+#[test]
 fn dash_group_options_typed() {
     let (mut s, hs) = lines();
     s.cmdline("-group").unwrap();
