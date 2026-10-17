@@ -1,0 +1,4 @@
+text {"at":[0,0],"text":"AAAAAAAAAA","height":10}
+text {"at":[0,-15],"text":"MMMMMMMMMM","height":10}
+text {"at":[0,-30],"text":"IIIIIIIIII","height":10}
+entities {"contains":"M"}

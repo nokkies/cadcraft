@@ -1,0 +1,42 @@
+# bom.scr.example -- cadcraft card M4-C2 (EXAMPLE, no project data)
+#
+# A cadcraft script that builds a bill-of-materials sheet: it opens a template that already
+# holds the A1 BORDER and A1 TITLE TEXT blocks, inserts the title block with its attributes,
+# draws the BOM table with `line` and `mtext`, and saves a DWG. This is the pattern every M4
+# sheet follows. No real part numbers or client names here -- those live in the real script in
+# $D\fusion\sheets\bom.scr.
+#
+# Run it with:
+#   cadcraft-cli run <template.dwg> --script-file bom.scr.example
+#
+# Each line is one command in the engine's JSON form (id {json}); the CLI runs them in order.
+# The template path is given on the command line, not in the script, so the script is portable.
+
+# Title block, with the fields the format notes name. Replace the values per sheet.
+insert {"name":"A1 TITLE TEXT","at":[0,0],"attribs":{"DWG_TITLE":"<CLIENT>","SCOPE1":"<PROJECT>","SCOPE2":"<SYSTEM>","DWG_AREA":"BILL OF MATERIALS","DWG_NO":"<AAAA-BB-BOM-NNN>","REV":"<rev>","PROJECTNO.":"<project>","SCALE":"NTS","BY7":"<initials>","DATE7":"<dd/mm/yy>"}}
+
+# Table frame and column rules (A3 portrait, drawn in model space; the layout viewport shows it).
+line {"points":[[10,10],[280,10],[280,390],[10,390]],"closed":true}
+line {"points":[[10,375],[280,375]]}
+# Column separators: ITEM | DESCRIPTION | MANUFACTURER | PART NUMBER | QTY
+line {"points":[[30,10],[30,375]]}
+line {"points":[[180,10],[180,375]]}
+line {"points":[[230,10],[230,375]]}
+line {"points":[[265,10],[265,375]]}
+
+# Header row.
+mtext {"at":[12,378],"text":"ITEM","height":3.5}
+mtext {"at":[32,378],"text":"DESCRIPTION","height":3.5}
+mtext {"at":[182,378],"text":"MANUFACTURER","height":3.5}
+mtext {"at":[232,378],"text":"PART NUMBER","height":3.5}
+mtext {"at":[267,378],"text":"QTY","height":3.5}
+
+# One row per item (repeat, advancing y by the row pitch). Values are placeholders here.
+mtext {"at":[12,368],"text":"1","height":2.5}
+mtext {"at":[32,368],"text":"<DESCRIPTION>","height":2.5}
+mtext {"at":[182,368],"text":"<MANUFACTURER>","height":2.5}
+mtext {"at":[232,368],"text":"<PART NUMBER>","height":2.5}
+mtext {"at":[267,368],"text":"1","height":2.5}
+
+# Save the sheet. The output path is passed by the caller.
+saveas {"path":"<out.dwg>","version":2018}

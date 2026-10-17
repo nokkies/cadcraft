@@ -1,0 +1,276 @@
+# PSA Fusion changelog
+
+One entry per build, newest first. Format: see `PLAN.md`, "Build numbers and the changelog".
+
+## 0.053  2026-10-18  M5-battman-multiline (PR #5)
+Changed: BATTMAN can now switch an attribute definition to/from multiline (`crates/engine/src/cmd/blocks/battman.rs`, gaps.md F17 narrowed). JSON `multiline` param and the typed Multiline? Yes/No property. Switching to multiline builds a MultilineAttrib from the attribute's own text (contents = mtext_literal(value), read_as = value, height/style carried over); switching back drops it. A new reference carries the multiline text. Code + tests + gaps.md on branch `fix/battman-multiline-attributes` (off main); PR #5 opened on the fork.
+Check:   new test battman_switches_an_attribute_to_and_from_multiline (fails before, passes after); `cargo xtask ci` all 6 steps passed; PASS
+Files:   psa/CHANGELOG.md, psa/VERSION
+
+## 0.052  2026-10-18  M5 "go crazy" batch: three more cadcraft fixes, PRs #2 #3 #4
+Changed: three more small AutoCAD-parity fixes, each test-first with `cargo xtask ci` green, each its own PR on the fork (nokkies/cadcraft) per Reinach's authorisation:
+- **PR #2** `-ATTEDIT` Position option (`fix/attedit-position`, branch stacked on PR #1): prompts for a new insertion point and moves the attribute (a justified attribute moves rigidly). Completes the Position/Height/Angle/Style set. gaps.md F1 narrowed.
+- **PR #3** `-RENAME` of a viewport configuration (`fix/rename-viewport-config`, off main): the VPort type (and rename table "vport") renames a saved VportConfig, excluding *Active. Also corrects the stale gaps.md F15 row (MVIEW Restore / -VPORTS Save already landed). gaps.md F1 narrowed to materials and plot styles.
+- **PR #4** PICKSTYLE associative-hatch bit (2) (`fix/pickstyle-associative-hatch`, off main): with it on, picking a boundary object also selects the associative hatch made from it (expand() reads HatchLoop.sources). gaps.md F16 narrowed.
+Check:   each fix's new test fails before and passes after; `cargo xtask ci` all 6 steps passed on each branch; PASS
+Files:   psa/CHANGELOG.md, psa/VERSION
+
+## 0.051  2026-10-18  M5-attedit-height-angle-style (first cadcraft code fix, PR opened)
+Changed: implemented the -ATTEDIT one-at-a-time Height, Angle and Style options in `crates/engine/src/cmd/blocks/attedit.rs` (gaps.md F1). Height and Angle take a number (Angle in degrees, stored in radians); Style is validated against the drawing's text styles; prompts default to the attribute's current value (new current_height/current_angle/current_style fall back to the block's ATTDEF like current_props does for layer/colour). A new set_text helper edits Attrib.text. Position and colour books stay "not available yet". Code fix + tests + gaps.md row are on branch `fix/attedit-height-angle-style` (commit aa3b8f8); PR #1 opened on the fork (nokkies/cadcraft) per Reinach's authorisation.
+Check:   new unit test attedit_one_at_a_time_sets_height_angle_style (fails before, passes after); extended integration tests attedit_prompts + attrib_props; `cargo xtask ci` -> all 6 steps passed (fmt, clippy, test, assets, layers, wasm); PASS
+Files:   psa/CHANGELOG.md, psa/VERSION, psa/pr/attedit-height-angle-style.md, psa/repro/attedit-height-angle-style.scr
+
+## 0.050  2026-10-18  M3-D4 (tighten check-d4 terminal-proximity window)
+Changed: `check-d4.ps1` matched a channel to a terminal number within a 12-unit vertical window, but the OF4 +/- rows are only 10 units apart, so both CHn I+ and CHn I- matched the same T-number. Tightened the vertical window to 5 units so each channel matches only its own terminal. (The drawn annotations were already correct — CH0 I+->T0, CH0 I-->T1 etc.; only the checker's report was imprecise.)
+Check:   `check-d4.ps1` -> SCD-003 16/16, SCD-004 16/16, SCD-005 8/8 annotated, 0 unmapped, exit 0; PASS
+Files:   psa/scripts/check-d4.ps1, psa/CHANGELOG.md, psa/VERSION
+
+## 0.049  2026-10-18  M4 (wire the D2/D3/D4 checkers into gen-all)
+Changed: `gen-all.ps1` now runs `ga-dimensions.ps1` (D2), `rail-lengths.ps1` (D3) and `check-d4.ps1` (D4) in its check suite alongside check-all/check-d1/wire-consistency/balloons/tbc-notes, so the capstone verifies every D-item that has a checker and a regression in any is caught.
+Check:   `gen-all.ps1` -> all 12 sheets generate; check-all/check-d1/wire-consistency/balloons/tbc-notes PASS; ga-dimensions PASS D2, rail-lengths PASS D3, check-d4 PASS D4; exit 0; PASS
+Files:   psa/scripts/gen-all.ps1, psa/CHANGELOG.md, psa/VERSION
+
+## 0.048  2026-10-18  docs (DRAWING-WORK status accurate for every D-item)
+Changed: added explicit DONE/OPEN status notes to D5, D6, D7, D8, D9 in psa/DRAWING-WORK.md (they were done but undocumented), and removed the now-contradictory "not yet annotated" line from D4. The work list now states each item's real state: D1/D4/D5/D6/D7/D9 done, D2/D3 partially done with sourced data and open to-scale/duct questions, D8 open (Reinach "I don't know"), D10 an M5 feature-gap observation.
+Check:   `gen-all.ps1` unchanged and green (this build only edits psa/DRAWING-WORK.md); PASS
+Files:   psa/DRAWING-WORK.md, psa/CHANGELOG.md, psa/VERSION
+
+## 0.047  2026-10-18  M3-D3 (draw the DIN rail cut-length note on the GA)
+Changed: `gen-scd.ps1`, when building the general arrangement sheet (GAD-001), now computes the DIN rail cut lengths inline (component widths from dimensions.csv + the _TagCircle balloon rail bands + 20% spare, matching rail-lengths.ps1) and emits them as a multi-line mtext note on the GA. This satisfies the D3 check "a note on the GA lists the rail and duct cut lengths and the total is at or below the BOM quantity".
+Check:   regenerated GA -> note reads "RAIL 1: 427 mm / RAIL 2: 299 mm / RAIL 3: 0 mm / TOTAL 726 mm vs BOM 2x2000=4000 mm" (matches rail-lengths.ps1); `gen-all.ps1` -> all 12 sheets generate, all checks green, exit 0; PASS (RAIL 3 field terminals have no datasheet width so read 0; duct length remains a layout read, raised in QUESTIONS.md)
+Files:   psa/scripts/gen-scd.ps1, psa/CHANGELOG.md, psa/VERSION
+
+## 0.046  2026-10-18  M3-D4 (annotate RTB pin numbers on the I/O schematics)
+Changed: `gen-scd.ps1` now loads pins.csv for the sheet's module (SCD-003 IB16, SCD-004 OB16, SCD-005 OF4) and emits a small "Tn" RTB terminal label to the left of each I/O channel name, so the sourced pin number is drawn on the schematic (not just available in pins.csv). Fixed the pins.csv default path to resolve from the drawings root. Updated `check-d4.ps1` to recognise the "Tn" annotation form.
+Check:   regenerated SCD-003/004/005 -> 16/16/8 T-numbers drawn; `check-d4.ps1` -> all 40 channels show a terminal number, 0 unmapped, exit 0; `gen-all.ps1` -> all 12 sheets generate, check-d1/wire-consistency/balloons/tbc-notes PASS, exit 0; PASS
+Files:   psa/scripts/gen-scd.ps1, psa/scripts/check-d4.ps1, psa/CHANGELOG.md, psa/VERSION
+
+## 0.045  2026-10-18  M3-D4 (RTB pin numbers sourced from Rockwell wiring diagrams)
+Changed: read the 5069-TD001 input/output/analog wiring diagrams (pages 8, 14, 33) with the vision model to get the 18-pin RTB terminal-to-channel mapping, and recorded it in `$D\fusion\pins.csv`: 5069-IB16 terminals 0-15 = IN 0-15 (shared common, return to SA(-)), 5069-OB16 terminals 0-15 = OUT 0-15 with LA+/LA- on 16/17, 5069-OF4 terminals 0-7 = CH0-CH3 +/- with shield grounds on 16/17. Added `psa\scripts\check-d4.ps1`: cross-references each generated I/O schematic's channel texts (SCD-003 DI, SCD-004 DO, SCD-005 AO) against pins.csv and reports how many channels already carry a terminal number on the sheet.
+Check:   `check-d4.ps1` -> SCD-003 16/16 mapped, SCD-004 16/16, SCD-005 8/8, 0 unmapped, exit 0; PASS (pin numbers sourced and consistent with every drawn channel; 0 channels yet annotated with a terminal number - annotation on the schematic remains)
+Files:   psa/scripts/check-d4.ps1, psa/CHANGELOG.md, psa/VERSION
+
+## 0.044  2026-10-18  M3-D3 (DIN rail cut lengths from sourced widths)
+Changed: added the MCB/RCBO/SPD widths to `$D\fusion\dimensions.csv` (NHP DTM10210C/DTM10225C 2P MCB 35W x 85H x 75D from the distributor listing, DTRL1030A RCBO 2-module, Cirprotec PSM SPD 2-module from its datasheet). Added `psa\scripts\rail-lengths.ps1`: it groups the GA's TAGNUMBER balloons into the three rail bands, sums each rail's real component widths from dimensions.csv, adds the 20 % spare D3 asks for, reads the BOM DIN-rail quantity (item 13), and compares. Writes the cut lengths to `$D\fusion\rail-lengths.txt`.
+Check:   `rail-lengths.ps1` -> RAIL 1 = 356 mm (SPD+25A MCB+RCBO+6x10A MCBs+PSU) -> 427 mm with spare, RAIL 2 = 249 mm (PLC+IB16+OB16+OF4+switch) -> 299 mm, total 726 mm vs BOM 2 x 2000 = 4000 mm, within quantity; exit 0; PASS (RAIL 3 field terminals have no widthed components so read 0; duct length and the on-GA note remain open)
+Files:   psa/scripts/rail-lengths.ps1, psa/CHANGELOG.md, psa/VERSION
+
+## 0.043  2026-10-18  M3-D2 (datasheets via web + GA scale check)
+Changed: Reinach said to use internet searches, so the D2 datasheet facts are now gathered. Downloaded the official Rockwell datasheets into `$D\fusion\datasheets\` and recorded real manufacturer dimensions in `$D\fusion\dimensions.csv`: 5069-L306ER 98.10x143.97x136.81mm (5069-TD002 p9), 1606-XLB120E 39x124x124mm (1606-RM055 p19/23), 1783-LMS8 115x134.5x38.1mm (1783-TD002 p23, read from the dimension drawing), 5069-IB16/OB16/OF4 Compact 5000 form factor (width caveat noted), enclosure from the BOM. Added `psa\scripts\ga-dimensions.ps1`, a D2 checker that measures each labelled GA component box against dimensions.csv at the 1:3 scale and classifies it TO-SCALE / SCHEMATIC / AMBIGUOUS.
+Check:   `ga-dimensions.ps1` -> all five components SCHEMATIC (ratios 3.0-27.5x real), 0 ambiguous, exit 0 — the GA is a schematic layout (its note 2 says "COMPONENT OUTLINES AND POSITIONS ARE NOMINAL"), so forcing 1:1 outlines would make the 12mm I/O modules 4-unit slivers; the sourced dimensions now exist for when a to-scale arrangement is wanted; PASS
+Files:   psa/scripts/ga-dimensions.ps1, psa/CHANGELOG.md, psa/VERSION
+
+## 0.042  2026-10-18  verification (objective audit)
+Changed: no code change — systematic audit that every card check and work-list item is either closed or genuinely blocked. Re-read PLAN.md M4/M5 and DRAWING-WORK.md. M4-C1 blocks.md complete (25 blocks, coverage vs format notes documented, 4 named-not-in-template blocks explained). M3: D1/D5/D6/D7/D9/D10 closed (each auto-checked); D2/D3/D4 confirmed fact-blocked (their source files `dimensions.csv`, `pins.csv`, `datasheets/` are all absent from `$D\fusion`); D8 and D6-item7 are engineering-fact questions. The 5 open QUESTIONS.md entries are the complete blocked list. No self-contained improvement remains.
+Check:   blocks.md complete; D1 check-d1 PASS, D5/D6/D9 PASS, D7 XR1 PASS; dimensions.csv/pins.csv/datasheets absent (D2/D3/D4 blocked); 5 open questions = the whole remaining list; PASS
+Files:   psa/CHANGELOG.md, psa/VERSION
+
+## 0.041  2026-10-18  M5 diligence (generator commands)
+Changed: no code change — probed the commands the generators use (`saveas`, `layout.set`, `layout.list`, `line`, `pline`, `attdef`) with hostile params (empty paths, deep nonexistent paths, version 9999/-1, empty/1-point point lists, 1e308 coords, empty tag). Every case returns a clean error or a sensible default; no crash. `layout.set {}` defaults to Model space (`view.rs:277` `unwrap_or("Model")`) — a deliberate default, not a bug. This closes the never-crash diligence over the generator command surface: no upstream bug to PR from it.
+Check:   11 hostile-param probes all exit 1 with a clear message or exit 0 with a sensible default, no panic; `layout.set {}` behaviour traced to the intentional Model default; PASS
+Files:   psa/CHANGELOG.md, psa/VERSION
+
+## 0.040  2026-10-18  verification (PDF export)
+Changed: no code change — PDF-export check over the generated set. Ran `exportpdf` (with `layout.set`) on all twelve generated sheets; each produced a real PDF. Noted that a generated BOM PDF (39 KB) is smaller than the source's (120 KB): the source embeds 8 font objects (plotted with fonts), cadcraft draws glyphs as vector strokes with no embedded fonts — the expected clean-room behaviour behind the D10 finding, not a defect. (`convert` to .pdf gives a 671-byte stub; `exportpdf` is the correct export path, as card M1 already used.)
+Check:   `exportpdf` produced a PDF >5 KB for 12 of 12 generated sheets; the size difference traced to font embedding (source /Font=8) vs cadcraft's stroke glyphs; PASS
+Files:   psa/CHANGELOG.md, psa/VERSION
+
+## 0.039  2026-10-18  verification (round-trip)
+Changed: no code change — round-trip fidelity test on the generated sheets. Opened each generated sheet and saved it again with cadcraft, then compared. The M4 output is durable: re-saving loses nothing, including the block-reference attributes.
+Check:   BOM 162->162 (4 title-block attributes kept), SCD-001 309->309 (15 TERMINAL inserts keep their TERM_NO values), TMD-003 192->192, GA 221->221 — zero loss on every family; PASS
+Files:   psa/CHANGELOG.md, psa/VERSION
+
+## 0.038  2026-10-18  M4 pipeline capstone
+Changed: added `psa\scripts\gen-all.ps1`, the whole M4 pipeline as one command — it regenerates all twelve sheets (gen-bom, gen-scd for the GA, gen-tmd x5, gen-scd x5) then runs the full check suite (check-all -Dir, check-d1, wire-consistency, balloons, tbc-notes) and reports a single PASS/FAIL. The known SCD-002 TX1 (the D8 question) is reported but does not fail the run; anything else does.
+Check:   `gen-all.ps1` -> all 12 generators exit 0, check-all 1 FAIL line (SCD-002 TX1) with 0 unexpected, check-d1/wire-consistency/balloons/tbc-notes all PASS, final exit 0; PASS
+Files:   psa/scripts/gen-all.ps1, psa/CHANGELOG.md, psa/VERSION
+
+## 0.037  2026-10-18  D1 automated check
+Changed: added `psa\scripts\check-d1.ps1`, which enforces DRAWING-WORK D1 automatically over the generated SCD sheets (no Circle on the terminal layer 3C, at least one TERMINAL block insert) — previously D1 was verified only by hand in build 0.024. Also audited the generators for completeness: across all 12 working sheets the only entity types present are Line, MText, Circle and Block Reference, all handled, so no content is silently dropped (the TMD sheets hold only Line/MText, so gen-tmd is complete for them).
+Check:   `check-d1.ps1` -> all 5 SCD sheets PASS (0 3C circles, 15/1/18/17/12 TERMINAL inserts), exit 0; entity-type audit shows 957 Line / 874 MText / 75 Circle / 25 Block Reference and no other types; PASS
+Files:   psa/scripts/check-d1.ps1, psa/CHANGELOG.md, psa/VERSION
+
+## 0.036  2026-10-18  bug fix (tbc-notes idempotency)
+Changed: `tbc-notes.ps1` now skips the generated-sheet captures (`fusion__out__*`) in `fusion\texts`. Running the regression pipeline had duplicated every "From the drawings" TBC line in `psa\QUESTIONS.md` — the faithful generated rebuilds carry the same TBC texts as their sources, and the tool scanned both. D9 is about the working drawings, so the generated captures are out of scope. Restored QUESTIONS.md to its clean 35-entry state.
+Check:   ran `tbc-notes.ps1` twice -> 35 "From the drawings" entries after each run (was doubling to 70), D9 PASS, `git diff psa\QUESTIONS.md` clean after regeneration; PASS
+Files:   psa/scripts/tbc-notes.ps1, psa/QUESTIONS.md, psa/CHANGELOG.md, psa/VERSION
+
+## 0.035  2026-10-18  verification
+Changed: no code change — pipeline regression pass after the BOM rebuild. Ran the full source pipeline and the D6 cross-sheet check on the generated set. All green: check-all over 27 source drawings (20 with the expected findings), wire-consistency D5 PASS (0 orphan wire numbers), tbc-notes D9 PASS (every TBC note has a QUESTIONS.md line), balloons D6 PASS on the generated set (every balloon is a BOM item, items 7/13/14/17 are the no-position allowances). The generated set holds at 11/12 passing all 13 rules (SCD-002's D8 question only).
+Check:   check-all source -> 27 checked, 20 with failures (expected); wire-consistency exit 0; tbc-notes exit 0; balloons exit 0 on generated set; PASS
+Files:   psa/CHANGELOG.md, psa/VERSION
+
+## 0.034  2026-10-18  M4-C2 (fidelity fix)
+Changed: `gen-bom.ps1` now rebuilds the BOM faithfully (carry every model line/text/circle from the source) instead of re-emitting the table on a fresh grid — the earlier version dropped the source's 32 TITLEBLOCK-layer table lines and the NOTES block (it emitted 9 lines where the source had 32). Now it carries all 158 source model entities plus the four added title-block/border/stamp entities, matching the source's exact table geometry, consistent with gen-tmd/gen-scd.
+Check:   generated BOM model entity count = source + 4 (158 -> 162: 32 lines, 128 texts = 126 source + 2 stamps, 2 title-block inserts); `check-drawing.ps1` -> all 13 rules PASS, exit 0; a render confirms the 24-row table, correct columns, title block NNNN-IC-GAD-002, the draft stamp, and the NOTES section all present and aligned; PASS
+Files:   psa/scripts/gen-bom.ps1, psa/CHANGELOG.md, psa/VERSION
+
+## 0.033  2026-10-18  M5 (repro script)
+Changed: added `psa\repro\shx-font-width.scr`, the synthetic reproduction script for the D10 finding, per PLAN.md's M5 step 1 (repro scripts live in `psa/repro/<name>.scr`, never a PSA file). It emits three height-10 test strings (A, M, I runs) so the advance-width substitution is measurable. Linked it from the top of `psa\pr\shx-font-width.md`.
+Check:   `cadcraft-cli run --sample --script-file psa\repro\shx-font-width.scr` exits 0 and creates the test entities (no comment lines, valid commands); PASS
+Files:   psa/repro/shx-font-width.scr, psa/pr/shx-font-width.md, psa/CHANGELOG.md, psa/VERSION
+
+## 0.032  2026-10-18  verification
+Changed: no code change — re-ran `check-all.ps1 -Dir` over the generated set after the terminal-attribute change and traced SCD-002's remaining TX1 to its root cause. The generated set now has 11 of 12 sheets passing all 13 rules (was 7 of 12 before the M4-C3 attribute change). SCD-002's 9 sub-2.5 texts are terminal-strip row numbers on layer 3T drawn without an adjacent terminal circle, so they stay as 2.0mm text — the honest D8 question, not a generation defect. Updated the D8 entry in QUESTIONS.md with this.
+Check:   `check-all.ps1 -Dir $D\fusion\out` -> 12 checked, 1 with failures, 1 total failure (SCD-002 TX1); source SCD-002 model space confirmed to hold those 9 texts at h=2.0 on layer 3T with no coincident circle; PASS
+Files:   psa/QUESTIONS.md, psa/CHANGELOG.md, psa/VERSION
+
+## 0.031  2026-10-18  M4-C3 (terminal number in an attribute)
+Changed: `gen-scd.ps1` now moves each terminal's number into the library TERMINAL block's `TERM_NO` attribute (the block defines TERM_NO and TAG attdefs) and drops the redundant separate numeric MText that sat at the same position. This is M4-C3's exact ask: "the terminal number in an attribute... not circles". The number now renders at the block's attdef height (5mm) rather than the source's 2.0mm.
+Check:   every TERMINAL insert carries a non-empty TERM_NO (15/15, 1/1, 18/18, 17/17, 12/12 across SCD-001..005); SCD-001/003/004/005 now PASS all 13 rules (their only sub-2.5 text was the terminal numbers, now 5mm attributes), SCD-002 still flags TX1 for its 9 *other* 2.0mm texts (correct); a render confirms the numbers show inside the terminal blocks, legible, no overlap; PASS
+Files:   psa/scripts/gen-scd.ps1, psa/CHANGELOG.md, psa/VERSION
+
+## 0.030  2026-10-18  M5 (D10 write-up)
+Changed: wrote `psa\pr\shx-font-width.md`, a PR-style write-up of the D10 SHX-font finding per PLAN.md's M5 convention (Reinach opens the PR). It pins the mechanism to the code (`ttf.rs:495` `is_stroke_name`, `lib.rs:84` `char_advance`, `stroke.rs:8-9` CAP/GAP), gives a synthetic reproduction command, and carries a measured number: cadcraft's `char_advance('A')` is (4.0+1.6)/6.0 = 0.9333 em, so "AAAAAAAAAA" at height 10 draws ~90.67 units wide vs ~0.6 em/glyph for AutoCAD's txt.shx — about 1.55x wider, scaling linearly with length. It states honestly that this is a feature (an SHX reader), not a quick patch, and asks for an interim per-style width multiplier.
+Check:   the three cited code lines verified against the source (`ttf.rs:495`, `complex.rs:125`, `stroke.rs:14` all match); the synthetic `text` command creates the entity (handle 12E, height 10); the advance is computed from the authoritative `char_advance` formula, machine-independent; PASS
+Files:   psa/pr/shx-font-width.md, psa/CHANGELOG.md, psa/VERSION
+
+## 0.029  2026-10-18  status
+Changed: no code change — consolidated status. Self-contained improvements are depleted. Done: M0 (build/run headless), M1 (open/inspect/render/export/round-trip all 27 drawings), M2 (13-rule checker over the set), M3 (D1 closed via M4; D5, D7, D9, D10 done; D2, D3, D4, D8 and the D6 enclosure item raised as questions), M4 (all twelve sheets regenerate from cadcraft scripts + the template block library, verified by `check-all -Dir`). M5: the block-count difference was shown not to be a bug (0.017) and the only cadcraft limitation found is the D10 SHX-font width gap (a feature, recorded in BLOCKED.md); hostile-param probes found no crash, so there is no quick-fix upstream PR from this project's findings. What remains needs Reinach or external facts: manufacturer datasheets (D2/D3/D4), the 2.0mm text-height and enclosure-balloon engineering calls (D8/D6), opening any M5 PR, and the 0.900 review.
+Check:   working tree clean on branch `fusion`; builds 0.000-0.028 committed; every remaining item is recorded in QUESTIONS.md or BLOCKED.md with a concrete reason; PASS
+Files:   psa/CHANGELOG.md, psa/VERSION
+
+## 0.028  2026-10-18  M4 verification
+Changed: `check-all.ps1` gained a `-Dir` mode that checks every `*.dwg` in a directory (capturing each one's info/texts JSON first via `capture-json.ps1`) instead of the inventory — so the M4 generated set is verifiable with the same checker. Report goes to `$D\fusion\check-report-generated.md`.
+Check:   `check-all.ps1 -Dir $D\fusion\out` -> 12 generated sheets checked, only the 5 SCD sheets fail TX1 (the 2.0mm terminal-number question, carried faithfully from the source), 0 other failures; PASS
+Files:   psa/scripts/check-all.ps1, psa/CHANGELOG.md, psa/VERSION
+
+## 0.027  2026-10-18  regression check
+Changed: no code change — regression pass. Ran `check-all.ps1` over all drawings and confirmed the build 0.019 `As-Array` fix: a drawing missing an attribute (the RRRR Reference TMDs, no PROJECTNO.) now reports `FAIL TB6` and continues through TB7-TB9 instead of crashing on `$null.Count`; check-all completes over all 27+ drawings (20 with failures, 40 findings, exit 1 by design — the NNNN SCD TX1 2.0mm question and the RRRR drawings' project-specific differences). Visually confirmed the generated SCD-001 renders as a clean schematic with rectangular terminal-block symbols (the D1 circles->blocks change), correct title block, and the draft stamp.
+Check:   `check-drawing.ps1` on RRRR-IC-TMD-001_A -> FAIL TB6 then PASS TB7-TB9, exit 1, no crash; `check-all.ps1` completes over all drawings; the generated SCD render shows terminal blocks not circles; PASS
+Files:   psa/CHANGELOG.md, psa/VERSION
+
+## 0.026  2026-10-18  M3-D2/D3/D4, M5 status
+Changed: raised D2, D3, D4 to `psa\QUESTIONS.md` Open — all three need manufacturer datasheets (component dimensions for the GA, DIN-rail/duct lengths, Compact 5000 I/O pin numbers) that are not in `$D\fusion`; they are blocked on external facts, not on cadcraft. Recorded the M5 status: the only cadcraft limitation found across M1-M4 is the D10 SHX-font width substitution (a feature gap, recorded in `psa\BLOCKED.md`), and the block-count difference was shown not to be a bug (build 0.017); hostile-param probes on `texts`/`entities`/`insert`/`circle`/`mtext` all return clean errors, no crashes, so there is no quick-fix upstream bug to PR from this project's findings.
+Check:   QUESTIONS.md Open has D2, D3, D4 alongside D6 and D8; the M5 finding is honest (no manufactured PR); PASS
+Files:   psa/QUESTIONS.md, psa/CHANGELOG.md, psa/VERSION
+
+## 0.025  2026-10-18  M4-C3 (fidelity fix)
+Changed: `gen-tmd.ps1` now rebuilds a TMD sheet faithfully (carry every model line/text/circle) instead of re-emitting only the terminal rows — the earlier version dropped the table frame and non-numeric cells (TMD-001 generated 24 entities where the source had 65). Now the generated sheet carries all source geometry plus the four added title-block/border/stamp entities.
+Check:   for each of the five TMD sheets, generated model entity count = source + 4 (65→69, 122→126, 188→192, 189→193, 134→138) — no content lost; `check-drawing.ps1` -> all 13 rules PASS, 0 FAILs each; PASS
+Files:   psa/scripts/gen-tmd.ps1, psa/CHANGELOG.md, psa/VERSION
+
+## 0.024  2026-10-18  M4-C13 (M4 milestone)
+Changed: recorded M4 complete. All twelve NNNN working sheets regenerate from cadcraft scripts and the template block library (no C# generator): `gen-bom.ps1` (BOM), `gen-tmd.ps1` (5 termination schedules), `gen-scd.ps1` (5 schematics + the GA, with terminal circles replaced by TERMINAL block inserts per D1). Marked D1 done in `psa\DRAWING-WORK.md`. The C# generator stays in its own repository, unchanged, as the reference (per PLAN.md).
+Check:   `$D\fusion\out\` holds 12 generated sheets, one per working sheet; `check-drawing.ps1` -> 7 sheets pass all 13 rules, the 5 SCD sheets pass 12/13 with only TX1 failing (the 2.0mm terminal-number text height, an open engineering-fact question from M3-D8 carried faithfully from the source, not a generation defect); D1 check passes on the SCD sheets (0 terminal circles, TERMINAL inserts present); M4 goal "the same 12 sheets regenerate from cadcraft scripts and a block library" is met; PASS with the TX1 question noted
+Files:   psa/DRAWING-WORK.md, psa/CHANGELOG.md, psa/VERSION
+
+## 0.023  2026-10-18  M4-C9
+Changed: extended `gen-scd.ps1` to carry `Block Reference` inserts with their attributes, so it also rebuilds the general-arrangement sheet; generated NNNN-IC-GAD-001 (the GA) with its 25 `_TagCircle` balloons carried across. All twelve working sheets now have a cadcraft-generated counterpart in `$D\fusion\out\`.
+Check:   `check-drawing.ps1` on the generated GA -> all 13 rules PASS, exit 0; `Get-ChildItem $D\fusion\out\*.dwg` -> 12 sheets, one per working sheet; PASS
+Files:   psa/scripts/gen-scd.ps1, psa/CHANGELOG.md, psa/VERSION
+
+## 0.022  2026-10-18  M4-C4 to M4-C8
+Changed: `psa\scripts\gen-scd.ps1` generates a schematic (SCD) sheet with cadcraft as a faithful rebuild — it reads the working drawing's model geometry and re-emits every line and text, and (DRAWING-WORK D1) replaces each 3C terminal circle with an `insert` of the library TERMINAL block. Ran over all five NNNN SCD sheets. Fixed the generator's geometry keys to cadcraft's (`Line` uses `a`/`b`, `MText` uses `contents`, `circle` uses `center`).
+Check:   each of NNNN-IC-SCD-001..005 generated; terminal circles became TERMINAL block inserts (15, 1, 18, 17, 12); `check-drawing.ps1` -> 12 of 13 rules PASS on every sheet, the only FAIL is TX1 (the 2.0mm terminal-number text height already raised as the M3-D8 question in QUESTIONS.md — a faithful carry of the source, not a generation defect); PASS
+Files:   psa/scripts/gen-scd.ps1, psa/CHANGELOG.md, psa/VERSION
+
+## 0.021  2026-10-18  M4-C3
+Changed: `psa\scripts\gen-tmd.ps1` generates a termination-diagram (TMD) sheet with cadcraft — a terminal-strip table read from the working drawing (title-block attributes from the paper-space layout, terminal rows from model space), emitted as `insert` + `line` + `mtext` and `saveas`ed. Ran it over all five NNNN TMD sheets.
+Check:   each of NNNN-IC-TMD-001..005 generated to `$D\fusion\out\`, then `check-drawing.ps1` -> all 13 rules PASS, 0 FAILs each; PASS
+Files:   psa/scripts/gen-tmd.ps1, psa/CHANGELOG.md, psa/VERSION
+
+## 0.020  2026-10-18  tooling
+Changed: `psa\scripts\run-step.ps1` — a helper that runs one or more `--cmd` steps against a drawing through the generated `.cmd` wrapper and prints the last step's JSON. It exists because the `--cmd` JSON quoting (PowerShell -> cmd -> native) has tripped every inline test this session; centralising it ends that. Used it to confirm the TMD sheets' model space is 34 Lines + 31 MTexts and **zero block inserts** — the terminal schedule is a drawn table, so DRAWING-WORK D1 (library blocks not circles) applies to the SCD schematic sheets, not the TMD schedules.
+Check:   `run-step.ps1 <tmd> 'entities {"limit":2000}'` returns clean JSON (65 entities, no quoting errors); `run-step.ps1 <tmd> 'texts {"limit":2000}'` returns the schedule rows; PASS
+Files:   psa/scripts/run-step.ps1, psa/CHANGELOG.md, psa/VERSION
+
+## 0.019  2026-10-18  M4-C2
+Changed: cadcraft now produces the bill-of-materials sheet. `psa\scripts\gen-bom.ps1` reads the item rows and the paper-space title-block attributes from the current BOM drawing (via `layout.set` + `texts`), emits a cadcraft script (`$D\fusion\sheets\bom.scr`) that inserts A1 TITLE TEXT with its attributes, draws the table with `line`/`mtext`, adds the NOT FOR CONSTRUCTION stamp, and `saveas`es to `$D\fusion\out\NNNN-IC-GAD-002_A.dwg`; `psa\scripts\sheets\bom.scr.example` is the no-project-data pattern; `psa\scripts\capture-json.ps1` captures info+texts for a generated sheet so the same checker runs on it. Fixed a real latent bug in `check-drawing.ps1`: `@(...)` and a function returning an empty array both yield `$null` in PowerShell, and `$null.Count` tripped StrictMode on any drawing missing an attribute — added `As-Array` and the comma-operator in `Get-AttributeByTag`.
+Check:   `check-drawing.ps1` on the generated sheet -> all 13 rules PASS, exit 0 (TB1-TB9 title block, LY1 layers, TX1 heights, ST1 stamp, XR1 cross-ref); `exportpdf` of it -> 1-page A3 PDF; the render shows the 24-row BOM table, the title block (NNNN-IC-GAD-002, Rev A, the client ENERGY), the grid and the NOT FOR CONSTRUCTION stamp, matching the C# version's PDF; PASS
+Files:   psa/scripts/gen-bom.ps1, psa/scripts/capture-json.ps1, psa/scripts/check-drawing.ps1, psa/scripts/sheets/bom.scr.example, psa/CHANGELOG.md, psa/VERSION
+
+## 0.018  2026-10-18  M4-C1
+Changed: `$D\fusion\blocks.md` lists the PSA block library read from the template DWG (`blocks.list`) — 26 blocks with entity counts and purpose (A1 BORDER, A1 TITLE TEXT, the Weidmuller terminals wdu2_5/wsi6/wpe2.5/WTR2.5, DIN rail, _TagCircle balloon, schematic contacts/coils) — cross-checked against the format notes.
+Check:   `cadcraft-cli run $D\Template\NNNN-TEMPLATE_A.dwg --cmd "blocks.list {}"` -> 26 blocks; blocks.md names every one and maps it to its format-note purpose; the few notes-named symbols not in this template (OASCNTERM, earth1, CABLE_MARKER, Dore 165E12) are listed as carried by Reference/CABLE_S_3.5, not hidden; PASS
+Files:   psa/CHANGELOG.md, psa/VERSION (output $D\fusion\blocks.md, outside the repository)
+
+## 0.017  2026-10-18  M5-block-count (investigated, not a bug)
+Changed: traced the M1-C3 block-count "loss" (cadcraft 26 vs ACadSharp 28) to root cause in `crates/io/src/dxf_read.rs:1760-1778` — the `*Model_Space`/`*Paper_Space` block records are **deliberately** redirected (their entities go to `d.model` and `d.layouts`) and not inserted into `d.blocks`, and `info` additionally filters `*` names (`inquiry.rs:299`). ACadSharp counts all block records; cadcraft counts user blocks. Every entity is preserved (model 217 + paper 8 = the 225 `info` reports; M1-C6 round-trip loses nothing). This is a **reporting-semantics difference, not a cadcraft bug**, so no PR is filed — filing one would be wrong.
+Check:   `entities {}` in model space = 217, `info` entityCount = 225 (217 model + 8 paper title-block), no entity lost; `dxf_read.rs` shows the redirect is intentional; `blocks.list` and `info` agree at 26 (no internal inconsistency); conclusion: not a bug, recorded here and in the M1-C3 note; PASS
+Files:   psa/CHANGELOG.md, psa/VERSION (code read only, not changed)
+
+## 0.016  2026-10-18  M3-D8, M3-D10
+Changed: D10 (fonts) recorded as an M5 observation in `psa\BLOCKED.md` — cadcraft substitutes its stroke font for the template's SHX fonts, so text advance widths differ from AutoCAD's, with a synthetic "AAAAAAAAAA" height-10 example to measure upstream. D8 (text heights) left as a real open finding: the checker flags 2.0mm terminal numbering on the five SCD sheets, and whether to fix the drawing or relax the 2.5 floor is an engineering-fact question, written to `psa\QUESTIONS.md` rather than silently resolved.
+Check:   `psa\BLOCKED.md` carries the D10 observation with a synthetic example; `psa\QUESTIONS.md` carries the D8 question; the checker still FAILs TX1 on the 5 SCD sheets by design (a true finding, not a broken rule); PASS (both items recorded honestly)
+Files:   psa/BLOCKED.md, psa/QUESTIONS.md, psa/CHANGELOG.md, psa/VERSION
+
+## 0.015  2026-10-18  M3-D6
+Changed: `psa\scripts\balloons.ps1` checks that every GA balloon (the `_TagCircle` TAGNUMBER attribute) is a BOM item and every positioned BOM item is ballooned — and found BOM item 7 (the enclosure body) carries no balloon, so it is put on the no-position list **with a question to the engineering manager** rather than silently passed.
+Check:   `pwsh -NoProfile -File psa\scripts\balloons.ps1` -> GA balloons 1-6,8-12,15,16,18-24 all on the BOM; BOM items 1-24 all ballooned or on the no-position list {7,13,14,17}; 0 orphan balloons, 0 unballooned positioned items; report at `$D\fusion\balloons.txt`; exit 0; PASS. The item-7 assumption is written to `psa\QUESTIONS.md` (Open).
+Files:   psa/scripts/balloons.ps1, psa/QUESTIONS.md, psa/CHANGELOG.md, psa/VERSION (report at $D\fusion\balloons.txt, outside the repository)
+
+## 0.014  2026-10-18  M3-D5, M3-D7
+Changed: `psa\scripts\wire-consistency.ps1` checks that every wire number on a termination sheet exists on a schematic sheet **of the same project** (D5) — and the NNNN draft set is clean. D7 (cross-references resolve) was already green from the M2 checker; confirmed here.
+Check:   `pwsh -NoProfile -File psa\scripts\wire-consistency.ps1` -> 5 NNNN TMD sheets checked, **0 orphan wire numbers**; 7 RRRR Reference sheets reported out-of-scope (different project, different wire-numbering convention, not generator output); report at `$D\fusion\wire-consistency.txt`; exit 0; PASS. D7: all 5 `REFER DRG.` targets exist in the inventory (from M2-C3).
+Files:   psa/scripts/wire-consistency.ps1, psa/CHANGELOG.md, psa/VERSION (report at $D\fusion\wire-consistency.txt, outside the repository)
+
+## 0.013  2026-10-18  M3-D9
+Changed: `psa\scripts\tbc-notes.ps1` collects every "TBC" / "TO BE CONFIRMED" / "TBD" text on the drawings into `psa\QUESTIONS.md` under `From the drawings`, one line each with its sheet — 35 open engineering questions (RT PLC signal types and scaling, cable sizes and routes, terminal types, DIN-rail quantity, gland positions), left for Reinach and the engineering manager, not answered.
+Check:   `pwsh -NoProfile -File psa\scripts\tbc-notes.ps1` -> 35 notes collected, every one verified present in QUESTIONS.md; exit 0; PASS
+Files:   psa/scripts/tbc-notes.ps1, psa/QUESTIONS.md, psa/CHANGELOG.md, psa/VERSION
+
+## 0.012  2026-10-18  M2-C3
+Changed: `psa\scripts\check-drawing.ps1 <dwg> <rules.json>` and `check-all.ps1` now check every drawing against the rules and print `PASS`/`FAIL <id> <reason>` per rule, writing `$D\fusion\check-report.md` — and the checker **found a real defect**: the five NNNN SCD sheets carry text at height 2.0, below the format notes' 2.5 minimum.
+Check:   `pwsh -NoProfile -File psa\scripts\check-all.ps1` -> 27 drawings checked; **all 9 title-block rules, the layer rule, the draft-stamp rule and the cross-reference rule PASS on every drawing**; **TX1 (text-height-min 2.5) FAILS on 5 SCD sheets** (heights of 2.0 on terminal row numbers); report at `$D\fusion\check-report.md`; exit 1 by design (a FAIL is a true M3 finding, not a broken checker); PASS
+Files:   psa/scripts/check-drawing.ps1, psa/scripts/check-all.ps1, psa/CHANGELOG.md, psa/VERSION (report at $D\fusion\check-report.md, outside the repository)
+
+## 0.011  2026-10-18  M2-C2
+Changed: the drawing rules now exist in two files — `psa\scripts\rules.example.json` (the seven kinds with made-up values, as the card specifies) and `$D\fusion\rules.json` (the real set derived from `PSA_FORMAT_NOTES.md`): nine title-block attribute rules against block **A1 TITLE TEXT** (DWG_NO, REV, DWG_TITLE, DWG_AREA, PROJECTNO., SCALE, BY7, DATE7), a `layers-only-from` rule over the 56 real layers, `text-height-min` 2.5, the `NOT FOR CONSTRUCTION` draft stamp, and a `REFER DRG.` cross-reference.
+Check:   both files parse as JSON arrays; the real rules use values measured from the drawings (title-block tags confirmed present via `texts` `tag` field; 56-layer union and min height 2.0 measured from the info/texts JSON); PASS
+Files:   psa/scripts/rules.example.json, psa/CHANGELOG.md, psa/VERSION (real rules.json at $D\fusion\rules.json, outside the repository)
+
+## 0.010  2026-10-18  M2-C1
+Changed: `psa\scripts\texts.ps1` extracts the text of every drawing with `cadcraft-cli run <dwg> --cmd "texts {}"`, switching to the paper-space layout first (`layout.set`) because `texts` reads the current space and the title-block text lives in the layout — so the drawing number is now found in the extracted text, not just model space.
+Check:   `pwsh -NoProfile -File psa\scripts\texts.ps1` -> 27 JSONs, 0 failures, **0 drawings whose number was missing from the text** (each file has at least one text equal to its drawing number); exit 0; PASS
+Files:   psa/scripts/texts.ps1, psa/CHANGELOG.md, psa/VERSION (output $D\fusion\texts\, outside the repository)
+
+## 0.009  2026-10-18  M1-C6
+Changed: `psa\scripts\roundtrip.ps1` opens each drawing, saves it (`convert dwg->dwg`), re-opens it and diffs the re-opened info against the original read — cadcraft **loses nothing on save** across the whole PSA set.
+Check:   `pwsh -NoProfile -File psa\scripts\roundtrip.ps1` -> 27 drawings, **no loss: 27, loss: 0, failed: 0**; entity/layer/block/layout counts identical after open→save→re-open on every sheet; report at `$D\fusion\roundtrip-report.txt`; exit 0; PASS
+Files:   psa/scripts/roundtrip.ps1, psa/CHANGELOG.md, psa/VERSION (output $D\fusion\roundtrip\ and roundtrip-report.txt, outside the repository)
+
+## 0.008  2026-10-18  M1-C5
+Changed: every drawing now plots through its **paper-space layout** to PDF (`psa\scripts\export-pdf.ps1` runs `exportpdf {layout, paper A3, fit}` using the layout name from the info JSON), and cadcraft's plot is correct — a border, grid markers and a **readable title block on all 27 sheets**. The `--cmd` JSON needs its inner quotes backslash-escaped through `cmd.exe` (PowerShell→native arg passing strips them); the script drives a generated .cmd wrapper for that.
+Check:   `pwsh -NoProfile -File psa\scripts\export-pdf.ps1` -> 27 PDFs, 0 failures, 0 model-space-only; each PDF converted to PNG and inspected -> **title block yes, tb text yes, content yes on all 27**; the one flagged anomaly (GAD-002 read as "BAD-002") was a 100-dpi vision misread, a 200-dpi crop confirms **NNNN-IC-GAD-002, Rev A**; exit 0; PASS
+Files:   psa/scripts/export-pdf.ps1, psa/CHANGELOG.md, psa/VERSION (output $D\fusion\pdf\ and render-review.md, outside the repository)
+
+## 0.007  2026-10-18  M1-C4
+Changed: every drawing now has a model-space PNG (`psa\scripts\render-png.ps1` runs `cadcraft-cli convert`), and all 27 were looked at and scored in `$D\fusion\render-review.md` — content visible and coherent on all 27, title block absent on all 27 (correct: `convert` renders model space, the title block lives in the layout).
+Check:   `pwsh -NoProfile -File psa\scripts\render-png.ps1` -> 27 PNGs (2400x1600), 0 failures; three vision batches reviewed all 27 -> content=yes on all 27, titleblock=no on all 27 (expected for model space); render-review.md has three answers per drawing; exit 0; PASS
+Files:   psa/scripts/render-png.ps1, psa/CHANGELOG.md, psa/VERSION (output $D\fusion\png\ and render-review.md, outside the repository)
+
+## 0.006  2026-10-18  M1-C3
+Changed: `psa\scripts\compare-info.ps1` scores cadcraft's read of every drawing against the ACadSharp reference numbers and names the one systematic loss — cadcraft's block table holds **2 fewer block records than the file contains on every drawing that has dimensions**, because `*Model_Space` and `*Paper_Space` never reach the table (the DXF bridge carries them: 29 BLOCK records vs 26 in the engine), and `info` additionally hides every `*`-named block.
+Check:   `pwsh -NoProfile -File psa\scripts\compare-info.ps1` -> 27 drawings compared, output saved to `$D\fusion\compare-info.txt`; **layers exact on all 26 comparable drawings; layouts ok on all 27; entities MORE on all 26 (never fewer); blocks 2 short on 22, exact on 4**; exit 0; PASS
+Files:   psa/scripts/compare-info.ps1, psa/CHANGELOG.md, psa/VERSION (output $D\fusion\compare-info.txt, outside the repository)
+
+## 0.005  2026-10-18  M1-C2
+Changed: cadcraft now reads **every** PSA drawing on this machine — `psa\scripts\info-all.ps1` runs `cadcraft-cli info` over all 27 and files one JSON per drawing in `$D\fusion\info\`, with failures logged to `FAILED.txt` and the sweep continuing past them.
+Check:   `pwsh -NoProfile -File psa\scripts\info-all.ps1` -> **27 successes, 0 failures**, 27 JSON files of 27 drawings, `FAILED.txt` has no failure lines; exit 0; PASS. Note: `RRRR-IC-TMD-003_A.dwg` is the file `expected.csv` marks `ERROR / NullReferenceException` for the ACadSharp reference reader — cadcraft opens it, so that is a win worth noting.
+Files:   psa/scripts/info-all.ps1, psa/CHANGELOG.md, psa/VERSION (output $D\fusion\info\, outside the repository)
+
+## 0.004  2026-10-18  M1-C1
+Changed: every PSA drawing on this machine is now inventoried in one place — `psa\scripts\inventory.ps1` walks `3. Working` and `Reference` and writes `path, size_bytes, acadver` to `$D\fusion\inventory.csv`, so every later M1 card iterates a CSV instead of re-walking the tree.
+Check:   `pwsh -NoProfile -File psa\scripts\inventory.ps1` -> 27 dwg files found, 27 rows written, 0 empty acadver, all 27 `AC1032` (2018 format); exit 0; PASS
+Files:   psa/scripts/inventory.ps1, psa/CHANGELOG.md, psa/VERSION (output $D\fusion\inventory.csv, outside the repository)
+
+## 0.003  2026-10-18  M0-C3
+Changed: `cadcraft-cli` is now reachable by name from any folder in any new terminal (a shim at `C:\Users\ReinachvanNieuwenhui\.local\bin\cadcraft-cli.cmd`, a directory already on the user PATH, calling the release build by full path), plus `psa\scripts\cc.cmd` as the repo-local fallback — so every later card can just write `cadcraft-cli`.
+Check:   fresh `pwsh -NoProfile` in `%USERPROFILE%`: `Get-Command cadcraft-cli` -> `...\.local\bin\cadcraft-cli.cmd`, `cadcraft-cli --version` -> `cadcraft-cli 0.7.0` (exit 0); fresh `cmd` in `C:\`: same output (exit 0); PASS
+Files:   psa/scripts/cc.cmd, psa/CHANGELOG.md, psa/VERSION (shim at %USERPROFILE%\.local\bin\cadcraft-cli.cmd, outside the repository)
+
+## 0.002  2026-10-18  M0-C2
+Changed: the headless CLI now exists as a built release binary (`cadcraft-cli 0.7.0`), so drawings can be inspected, rendered and exported on this machine without the desktop app or a GPU.
+Check:   `cargo build --release -p cadcraft-cli` finished in 4m 37s (exit 0); `cadcraft-cli.exe --version` -> `cadcraft-cli 0.7.0`; `sample bracket %TEMP%\bracket.dwg` wrote 27475 bytes; `info` on it returned JSON with `entityCount: 46` (> 0), 9 layers, layouts Layout1/Layout2; PASS
+Files:   psa/CHANGELOG.md, psa/VERSION (binary at target/release/cadcraft-cli.exe, not committed)
+
+## 0.001  2026-10-18  M0-C1
+Changed: the machine now has the Rust toolchain (rustup, stable-x86_64-pc-windows-msvc 1.99.1) installed system wide, so `rustc` and `cargo` run from any new terminal; the C++ build tools the card asks for (MSVC 14.44.35207 `link.exe`, Windows SDK 10.0.26100) were already present and needed no install.
+Check:   fresh terminal, reloaded PATH: `rustc --version` -> `rustc 1.99.1 (58cf8f9c3 2026-10-13)`, `cargo --version` -> `cargo 1.99.1 (5f94df478 2026-08-27)`; PASS (1.99.1 >= 1.95)
+Files:   psa/CHANGELOG.md, psa/VERSION (toolchain itself is outside the repository)
+
+## 0.000  2026-10-17  plan
+Changed: plan, drawing work list, changelog and version files created by Claude.
+Check:   none (no code or drawing changed)
+Files:   psa/PLAN.md, psa/DRAWING-WORK.md, psa/CHANGELOG.md, psa/VERSION, psa/QUESTIONS.md, psa/BLOCKED.md

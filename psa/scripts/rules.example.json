@@ -1,0 +1,9 @@
+[
+  {"id": "TB1", "kind": "attribute-present", "block": "TITLE", "tag": "DWG_NO"},
+  {"id": "TB2", "kind": "attribute-equals-filename", "block": "TITLE", "tag": "DWG_NO"},
+  {"id": "TB3", "kind": "attribute-present", "block": "TITLE", "tag": "REV"},
+  {"id": "LY1", "kind": "layers-only-from", "layers": ["0", "TITLEBLOCK", "1C", "1T"]},
+  {"id": "TX1", "kind": "text-height-min", "min": 2.5},
+  {"id": "ST1", "kind": "draft-stamp-present", "text": "NOT FOR CONSTRUCTION"},
+  {"id": "XR1", "kind": "cross-reference-exists", "pattern": "REFER DRG. ([A-Z0-9-]+)"}
+]
