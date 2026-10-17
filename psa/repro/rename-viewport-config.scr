@@ -1,0 +1,22 @@
+# Repro for -RENAME of a viewport configuration.
+#
+# Setup (non-interactive): tile the model space into two and save the configuration as "Two":
+line {"points":[[0,0],[100,50]]}
+zoom {"mode":"extents"}
+-vports {"option":"2","arrangement":"vertical"}
+-vports {"option":"save","name":"Two"}
+
+# Before the fix:
+#   -RENAME
+#   Enter object type to rename: VPort
+#   Enter old viewport configuration name: Two
+#   Enter new viewport configuration name: Pair
+#   Renaming a viewport configuration is not available yet.
+#
+# After the fix: the saved configuration "Two" becomes "Pair" (*Active is left alone).
+#
+# JSON form (same behaviour, no prompts):
+#   rename {"table":"vport","from":"Two","to":"Pair"}
+#
+# The engine test rename_viewport_configuration drives both forms and asserts the rename,
+# that *Active is untouched, and that *Active/unknown/duplicate targets are refused.

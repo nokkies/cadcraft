@@ -93,6 +93,7 @@ pub(super) fn simple(s: &mut Session, table: &str, from: &str, to: &str) -> Resu
         "tablestyle" => d.table_styles.iter_mut().map(|t| &mut t.name).collect(),
         "view" => d.views.iter_mut().map(|t| &mut t.name).collect(),
         "ucs" => d.ucss.iter_mut().map(|t| &mut t.name).collect(),
+        "vport" => d.vports.iter_mut().filter(|c| !c.is_active()).map(|c| &mut c.name).collect(),
         _ => return Err(bad("rename", "unsupported table")),
     };
     if !to.eq_ignore_ascii_case(from) && names.iter().any(|n| n.eq_ignore_ascii_case(&to)) {
@@ -136,7 +137,7 @@ const TYPES: &[(&str, Option<&str>, &str)] = &[
     ("Tablestyle", Some("tablestyle"), "table style"),
     ("Ucs", Some("ucs"), "UCS"),
     ("VIew", Some("view"), "view"),
-    ("VPort", None, "viewport configuration"),
+    ("VPort", Some("vport"), "viewport configuration"),
 ];
 
 /// Keyword-only: spaces separate inputs.
@@ -159,6 +160,7 @@ fn exists(d: &Drawing, table: &str, name: &str) -> bool {
         "tablestyle" => any_named(d.table_styles.iter().map(|t| &t.name), name),
         "view" => any_named(d.views.iter().map(|t| &t.name), name),
         "ucs" => any_named(d.ucss.iter().map(|t| &t.name), name),
+        "vport" => any_named(d.vports.iter().filter(|c| !c.is_active()).map(|c| &c.name), name),
         _ => true,
     }
 }
