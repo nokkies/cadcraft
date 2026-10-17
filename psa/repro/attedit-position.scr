@@ -1,0 +1,27 @@
+# Repro for -ATTEDIT Position (interactive command).
+#
+# -ATTEDIT is interactive, so it is reproduced by typing at the command line (the JSON `run` form
+# never opens prompts). Set up a block with one attribute, then drive -ATTEDIT one at a time and
+# choose Position.
+#
+# Setup (non-interactive). The attdef handle is the last entity in a fresh sample; capture it, then
+# make the block and insert it (handles are hex strings):
+attdef {"tag":"TAG","at":[10,0],"default":"D","height":2.5}
+#   block  {"name":"B","base":[0,0],"handles":["<attdef-handle>"],"keep":"delete"}
+#   insert {"name":"B","at":[0,0],"attribs":{"TAG":"hello"}}
+#
+# Then at the command line (the behaviour under test):
+#   -ATTEDIT
+#   Edit attributes one at a time? <Y>
+#   Enter block name specification <Enter>
+#   Enter attribute tag specification <Enter>
+#   Enter attribute value specification <Enter>
+#   Select attributes: all<Enter><Enter>
+#   Enter an option: Position<Enter>
+#   Enter new insertion point for attribute <TAG>: 50,60<Enter>
+#   Enter an option: <Enter>       (Next -> done)
+#
+# Before the fix: Position answers "Position is not available yet."
+# After the fix: the attribute's insertion point moves to the picked point.
+#
+# The engine test dash_attedit_position_moves_the_attribute drives this and asserts the move.
