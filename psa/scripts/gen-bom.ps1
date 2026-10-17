@@ -241,6 +241,12 @@ foreach ($e in $ents.entities) {
 }
 
 $outDwg = Join-Path $OutDir ($bomSheet + '.dwg')
+# M4-C14 + M5 lineweights: plot monochrome with entity lineweights honoured, like the Reference
+# (see gen-scd.ps1 for the full note).
+if ($tplLayout) {
+    $lines.Add('pagesetup {"layout":' + (ConvertTo-JsonStringValue -Value $tplLayout) + ',"plotStyleTable":"monochrome.ctb","lineweights":true}')
+}
+
 $lines.Add('saveas {"path":' + (ConvertTo-JsonStringValue -Value $outDwg) + ',"version":2018}')
 
 $scrPath = Join-Path $SheetsDir 'bom.scr'

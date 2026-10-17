@@ -323,6 +323,40 @@ per terminal, the terminal number in an attribute or an `mtext` next to it), not
 When every sheet passes, record in the changelog that M4 is complete. The AutoDraft generator
 stays in its repository, unchanged, as the reference.
 
+### M4-C14 Plots match the Reference's ink (monochrome)
+
+The Reference issued PDFs are monochrome: measured on an issued Reference termination sheet, the ink
+is true black (0,0,0) and only 0.05% of pixels carry any hue (anti-aliasing). cadcraft plots the layer
+*colours* because the template's page setup names `PSA.ctb`, a colour-dependent table cadcraft
+does not carry (it is private and in AutoCAD's binary format, not cadcraft's), so
+`plot_style_table()` resolves it to `None`. cadcraft's own `monochrome.ctb` maps every colour to
+black and reproduces the measured Reference ink.
+
+This is a generation-side fix, not a cadcraft bug (cadcraft applies a named table correctly when it
+has it): the generators set each generated sheet's page `plotStyleTable` to `monochrome.ctb` before
+`saveas`, so the plotted output is black-on-white like the Reference.
+
+Check: `check-f5.ps1` (or a plot-style check) exports each generated sheet and confirms the ink is
+monochrome — the fraction of coloured pixels in the rendered plot is below the Reference's own
+0.05% band — and the plot still shows its content.
+
+### M4-C15 Plots carry the Reference's line density
+
+With M4-C14's monochrome applied, the generated plots still carried far less ink than the Reference
+(measured: GAD-001 0.49% ink vs the Reference's 4.07%) because the template's page setup has
+lineweights **off**, so every line plots hairline-thin. cadcraft cannot read `PSA.ctb`'s per-colour
+weight assignment (private, AutoCAD binary), but it can honour the entities' own lineweights. The
+generators now set `lineweights:true` on the layout's page setup alongside the monochrome table.
+
+Measured: with lineweights on, the twelve plots rise to 2.4–3.8% ink — inside the Reference's
+0.66–4.07% band — and stay 0% coloured. A viewed plot shows solid black wires, terminal blocks and
+legible text (a proper high-contrast CAD plot), not the faint gray before.
+
+Check: `check-ink.ps1` reports each generated plot monochrome (0% coloured) and, with the floor
+raised to the Reference's density, non-empty at the Reference's ink level. This is the faithful
+subset of the plot style cadcraft can apply without the private `PSA.ctb`; the remaining difference
+(the exact per-colour weight hierarchy `PSA.ctb` assigns) is an M5 upstream item, not closable here.
+
 ---
 
 ## M5: send fixes upstream

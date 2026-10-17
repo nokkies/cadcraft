@@ -351,6 +351,19 @@ if ($name -match 'GAD-001') {
     }
 }
 
+# M4-C14: the Reference plots are monochrome (measured: black ink, 0.05% coloured pixels). The
+# template's page setup names PSA.ctb, which cadcraft does not carry, so it would plot layer
+# colours. Set the layout's plot style to cadcraft's builtin monochrome.ctb so the plot matches
+# the Reference ink. Generation-side plot choice, not a cadcraft change.
+# M5 (lineweights): the template's page setup has lineweights off, so lines plot hairline-thin and
+# the plot carries far less ink than the Reference (measured: GAD-001 0.49% ink vs the Reference's
+# 4.07%). Turning lineweights on raises it to 3.17%, into the Reference's range. cadcraft cannot
+# read PSA.ctb's per-colour weight assignment (private, AutoCAD binary), so this is the faithful
+# subset we can apply: honour the entities' own lineweights.
+if ($tplLayout) {
+    $lines.Add('pagesetup {"layout":' + (ConvertTo-JsonStringValue -Value $tplLayout) + ',"plotStyleTable":"monochrome.ctb","lineweights":true}')
+}
+
 $lines.Add('saveas {"path":' + (ConvertTo-JsonStringValue -Value $outDwg) + ',"version":2018}')
 
 $scrPath = Join-Path $SheetsDir (($name -replace '\.dwg$', '') + '.scr')
