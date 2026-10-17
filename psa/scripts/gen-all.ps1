@@ -117,6 +117,14 @@ $f4Last = (($f4 -split "`r?`n" | Where-Object { $_ -match '\S' } | Select-Object
 if ($LASTEXITCODE -ne 0) { Write-Host "[check-f4] FAIL  $f4Last"; $fail = 1 }
 else { Write-Host "[check-f4] PASS  $f4Last" }
 
+# M4-F5 (machine half): export every generated sheet's layout and require the twelve PDFs to be
+# distinct from each other and from the empty template frame (SHA-256). The human half -- viewing
+# each plot and answering the three M1-C4 questions -- is recorded in $D\fusion\render-review-generated.md.
+$f5 = (& pwsh -NoProfile -File (Join-Path $s 'check-f5.ps1') 2>&1 | Out-String)
+$f5Last = (($f5 -split "`r?`n" | Where-Object { $_ -match '\S' } | Select-Object -Last 1))
+if ($LASTEXITCODE -ne 0) { Write-Host "[check-f5] FAIL  $f5Last"; $fail = 1 }
+else { Write-Host "[check-f5] PASS  $f5Last" }
+
 if ($fail -eq 0) {
     Write-Host 'PASS M4 pipeline (all twelve sheets generated; every check green; SCD-002 TX1 is the known D8 question)'
     exit 0

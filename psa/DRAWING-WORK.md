@@ -156,3 +156,28 @@ render substitutes its own stroke font and the text widths differ from AutoCAD's
 Check: nothing to fix in the drawings. Record the width difference you observe between the
 cadcraft PNG and the Reference PDFs in `psa/BLOCKED.md` as an M5 observation, with a synthetic
 example, so it can be measured upstream.
+
+## M4 status: complete (build 0.059)
+
+M4 (generate the twelve sheets from the template so they plot correctly) is complete, gated by
+card M4-F5 "the plot is the check". The five fix cards, one build each:
+
+- **M4-F1 (0.055)** the title block is set on the template's existing paper-space reference
+  (`attedit`), not re-inserted into model space. `check-f1.ps1`.
+- **M4-F2 (0.056)** content plots: cadcraft draws on the current layer, so the generators switch
+  `layer.current` per group (the old code left everything on the frozen "Viewport" layer).
+  `check-f2.ps1`.
+- **M4-F3 (0.057)** block references carry their source scale and rotation (the GA balloons were
+  plotting at scale 1 instead of 6). `compare-inserts.ps1`.
+- **M4-F4 (0.058)** MText line breaks use the `\P` paragraph code, not a literal `\n`. `check-f4.ps1`.
+- **M4-F5 (0.059)** the plot is the check: all twelve sheets are exported with `exportpdf`, their
+  twelve PDFs have distinct SHA-256 hashes and each is well above the empty template frame
+  (`check-f5.ps1`), and each plot was viewed with the three M1-C4 questions answered in
+  `$D\fusion\render-review-generated.md` (title block visible / title-block text / content visible —
+  all yes on all twelve).
+
+What this does NOT claim: the generated plots are 72–89% of the source working drawings' plot
+sizes. The remaining gap is linetype/plot-style fidelity and font-width substitution (SHX), which
+is the M5 list, not M4. M4 is "the sheets plot with the right title block, content, scale, and
+line breaks" — that is met and looked at. No library is built in this repository (Goal 1 is
+producing and verifying PSA's own drawings, not a generic block library).
