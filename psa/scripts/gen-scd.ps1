@@ -342,7 +342,9 @@ if ($name -match 'GAD-001') {
             $noteLines.Add(("{0}: {1} mm" -f $b.n, ([Math]::Round($ws,0)).ToString([System.Globalization.CultureInfo]::InvariantCulture)))
         }
         $noteLines.Add(("TOTAL {0} mm vs BOM 2x2000=4000 mm" -f ([Math]::Round($tot,0)).ToString([System.Globalization.CultureInfo]::InvariantCulture)))
-        $noteText = $noteLines -join '\n'
+        # M4-F4: MText line breaks are the DXF paragraph code \P, not \n (a literal \n renders as
+        # the two characters backslash-n on the sheet). The source's own MText already uses \P.
+        $noteText = $noteLines -join '\P'
         # Place the note in a clear area (lower-left of the GA interior).
         Emit-Layer '1T'
         $lines.Add('mtext {"at":[40,120],"text":' + (ConvertTo-JsonStringValue $noteText) + ',"height":3,"layer":"1T"}')

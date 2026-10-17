@@ -2,6 +2,11 @@
 
 One entry per build, newest first. Format: see `PLAN.md`, "Build numbers and the changelog".
 
+## 0.058  2026-10-18  M4-F4 (MText line breaks use the \P paragraph code)
+Changed: gen-scd's generated multi-line note (the GA DIN-rail cut-lengths note) now joins its lines with the DXF paragraph code `\P` instead of a literal `\n` (REVIEW-0.053 §2 found a note with a literal `\n`, which renders as the two characters backslash-n). The generators carry the source's own MText contents unchanged, and those already use `\P`. Added `psa/scripts/check-f4.ps1` and wired it into `gen-all.ps1`.
+Check:   `check-f4.ps1` PASS on all 12 sheets — no generated MText contains a literal backslash-n; 138 `\P` paragraph breaks across the sheets. `gen-all.ps1` exit 0, all checks green. No M4-completion claim (that is M4-F5).
+Files:   psa/scripts/gen-scd.ps1, psa/scripts/check-f4.ps1, psa/scripts/gen-all.ps1, psa/CHANGELOG.md, psa/VERSION
+
 ## 0.057  2026-10-18  M4-F3 (block references keep scale and rotation)
 Changed: gen-scd's Block Reference branch now carries the source block reference's `scale` and `rotation` into the `insert` command (emitting scale only when not 1,1 and rotation only when non-zero). The GA balloons (`_TagCircle`) are placed at scale 6 in the source; without it they plotted at scale 1 as pinpricks next to the components (REVIEW-0.053 §2). Added `psa/scripts/compare-inserts.ps1` and wired it into `gen-all.ps1`.
 Check:   `compare-inserts.ps1` PASS on all 12 sheets — every generated model-space Insert matches a source Insert on block/position/scale/rotation (TERMINAL blocks are excluded: they are generated from the source's terminal circles, not from source inserts, and check-d1 covers them). GAD-001's 25 `_TagCircle` balloons now read scale (6,6) rot 0, matching the source. GA plot rendered (`.scratch\f3_ga.png`): the balloons are now clearly visible circles containing item numbers next to the component rectangles, not tiny dots. `gen-all.ps1` exit 0, all checks green. No M4-completion claim (that is M4-F5).

@@ -111,6 +111,12 @@ $ciLast = (($ci -split "`r?`n" | Where-Object { $_ -match '\S' } | Select-Object
 if ($LASTEXITCODE -ne 0) { Write-Host "[compare-inserts] FAIL  $ciLast"; $fail = 1 }
 else { Write-Host "[compare-inserts] PASS  $ciLast" }
 
+# M4-F4: no generated MText carries a literal backslash-n (line breaks must be the \P code).
+$f4 = (& pwsh -NoProfile -File (Join-Path $s 'check-f4.ps1') 2>&1 | Out-String)
+$f4Last = (($f4 -split "`r?`n" | Where-Object { $_ -match '\S' } | Select-Object -Last 1))
+if ($LASTEXITCODE -ne 0) { Write-Host "[check-f4] FAIL  $f4Last"; $fail = 1 }
+else { Write-Host "[check-f4] PASS  $f4Last" }
+
 if ($fail -eq 0) {
     Write-Host 'PASS M4 pipeline (all twelve sheets generated; every check green; SCD-002 TX1 is the known D8 question)'
     exit 0
