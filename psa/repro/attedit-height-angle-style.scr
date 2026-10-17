@@ -1,0 +1,32 @@
+# Repro for -ATTEDIT Height/Angle/Style (interactive command).
+#
+# -ATTEDIT is interactive, so it is reproduced by typing at the command line, not by a
+# non-interactive script (the JSON `run` form never opens prompts). Set up a block with one
+# attribute, then drive -ATTEDIT one at a time and set Height, Angle and Style.
+#
+# Setup (non-interactive). The attdef handle is the last entity in a fresh sample; capture it,
+# then make the block and insert it (handles are hex strings):
+attdef {"tag":"TAG","at":[10,0],"default":"D","height":2.5}
+#   block  {"name":"B","base":[0,0],"handles":["<attdef-handle>"],"keep":"delete"}
+#   insert {"name":"B","at":[0,0],"attribs":{"TAG":"hello"}}
+#
+# Then at the command line (the behaviour under test):
+#   -ATTEDIT
+#   Edit attributes one at a time? <Y>
+#   Enter block name specification <Enter>            (default *)
+#   Enter attribute tag specification <Enter>          (default *)
+#   Enter attribute value specification <Enter>        (default *)
+#   Select attributes: all<Enter><Enter>
+#   Enter an option: Height<Enter>
+#   Enter new height for attribute <TAG>: 5<Enter>
+#   Enter an option: Angle<Enter>
+#   Enter rotation for attribute <TAG>: 90<Enter>
+#   Enter an option: Style<Enter>
+#   Enter new text style for attribute <TAG>: Standard<Enter>
+#   Enter an option: <Enter>                           (Next -> done)
+#
+# Before the fix: Height, Angle and Style each answer "<Option> is not available yet."
+# After the fix: the attribute's height, rotation and text style are set.
+#
+# The engine unit test attedit_one_at_a_time_sets_height_angle_style drives exactly this
+# sequence and asserts height=5, rotation=90deg, style=Standard.
