@@ -84,9 +84,10 @@ fn dash_attedit_one_at_a_time_edits_the_selected_attributes() {
     let h = handle(&insert(&mut s, 100.0, json!({"T": "abc"})));
     type_lines(&mut s, &["-attedit", "y", "", "T", "", "105,0", ""]);
     assert!(s.prompt_text().contains("[Value/Position/Height/Angle/Style/Layer/Color/Next] <N>"), "{}", s.prompt_text());
-    // Position is still not supported; it says so and keeps the prompt.
+    // Position moves the attribute; here we move it and move it back so the value edits below
+    // still apply to the same attribute.
     s.cmdline("p").unwrap();
-    assert!(s.log.iter().any(|l| l.contains("Position is not available yet")), "{:?}", s.log);
+    s.cmdline("105,0").unwrap();
     // Height, Angle and Style are supported: set them, then edit the value by replacing a string.
     type_lines(&mut s, &["h", "4", "a", "45", "s", "Standard"]);
     {
@@ -100,6 +101,31 @@ fn dash_attedit_one_at_a_time_edits_the_selected_attributes() {
     assert!(s.running.is_none(), "{}", s.prompt_text());
     assert_eq!(value(&s, h, "T"), "replaced value");
     assert_eq!(value(&s, h, "U"), "u");
+}
+
+#[test]
+fn dash_attedit_position_moves_the_attribute() {
+    let mut s = with_block();
+    let h = handle(&insert(&mut s, 100.0, json!({"T": "abc"})));
+    // Attribute T's definition is at (0,1); the reference is at x=100, so its world insert is (100,1).
+    {
+        let EntityKind::Insert(i) = &s.doc().unwrap().entity(h).unwrap().kind else { panic!("not an insert") };
+        let t = &i.attribs.iter().find(|a| a.tag == "T").unwrap().text;
+        assert!((t.insert.x - 100.0).abs() < 1e-9 && (t.insert.y - 1.0).abs() < 1e-9, "start at {:?}", t.insert);
+    }
+    type_lines(&mut s, &["-attedit", "y", "", "T", "", "105,0", ""]);
+    // Position: pick a new insertion point in drawing coordinates.
+    s.cmdline("p").unwrap();
+    assert!(s.prompt_text().contains("Enter new insertion point for attribute"), "{}", s.prompt_text());
+    s.cmdline("50,60").unwrap();
+    {
+        let EntityKind::Insert(i) = &s.doc().unwrap().entity(h).unwrap().kind else { panic!("not an insert") };
+        let t = &i.attribs.iter().find(|a| a.tag == "T").unwrap().text;
+        assert!((t.insert.x - 50.0).abs() < 1e-9 && (t.insert.y - 60.0).abs() < 1e-9, "moved to {:?}", t.insert);
+    }
+    // Next finishes.
+    s.cmdline("").unwrap();
+    assert!(s.running.is_none(), "{}", s.prompt_text());
 }
 
 #[test]

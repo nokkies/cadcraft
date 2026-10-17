@@ -4,6 +4,7 @@
 
 use cadcraft_doc::color::Color;
 use cadcraft_doc::{AttribProps, Common, EntityKind, Handle};
+use cadcraft_geom::{Vec2, Vec3};
 use serde_json::{Map, Value, json};
 
 use crate::cmd::curves::KW;
@@ -170,6 +171,13 @@ fn current_angle(s: &Session, (h, k): (Handle, usize)) -> Option<f64> {
 }
 fn current_style(s: &Session, (h, k): (Handle, usize)) -> Option<String> {
     current_text_prop(s, (h, k)).map(|t| t.style)
+}
+fn current_insert(s: &Session, (h, k): (Handle, usize)) -> Option<(f64, f64)> {
+    let d = s.doc().ok()?;
+    let e = d.entity(h)?;
+    let EntityKind::Insert(ins) = &e.kind else { return None };
+    let a = ins.attribs.get(k)?;
+    Some((a.text.insert.x, a.text.insert.y))
 }
 
 /// The text geometry attribute `k` of block reference `h` is drawn with: its own height/rotation/
@@ -349,6 +357,7 @@ enum Stage {
     NewHeight,
     NewAngle,
     NewStyle,
+    NewPosition,
     Find,
     Replace,
 }
@@ -450,6 +459,13 @@ impl Interactive for DashAtteditM {
                     None => p,
                 }
             }
+            Stage::NewPosition => {
+                let p = Prompt::new("Enter new insertion point for attribute", Accept::POINT);
+                match self.items.get(self.cur).and_then(|it| current_insert(s, *it)) {
+                    Some((x, y)) => p.base(Vec2::new(x, y)),
+                    None => p,
+                }
+            }
             Stage::Layer => {
                 let p = Prompt::new("Enter new layer name", Accept::TEXT);
                 match cur {
@@ -526,7 +542,7 @@ impl Interactive for DashAtteditM {
                 Input::Keyword(k) if k == "Height" => self.stage = Stage::NewHeight,
                 Input::Keyword(k) if k == "Angle" => self.stage = Stage::NewAngle,
                 Input::Keyword(k) if k == "Style" => self.stage = Stage::NewStyle,
-                Input::Keyword(k) if k == "Position" => return Err(EngineError::Other("Position is not available yet.".into())),
+                Input::Keyword(k) if k == "Position" => self.stage = Stage::NewPosition,
                 Input::Keyword(_) | Input::Enter => {
                     self.cur += 1;
                     if self.cur >= self.items.len() {
@@ -534,14 +550,7 @@ impl Interactive for DashAtteditM {
                     }
                     self.show_current(s);
                 }
-                Input::Text(t) => {
-                    let tl = t.trim().to_ascii_lowercase();
-                    return if !tl.is_empty() && "position".starts_with(&tl) {
-                        Err(EngineError::Other("Position is not available yet.".into()))
-                    } else {
-                        Err(invalid_keyword())
-                    };
-                }
+                Input::Text(_) => return Err(invalid_keyword()),
                 _ => {}
             },
             Stage::ValueKind => match &i {
@@ -632,6 +641,28 @@ impl Interactive for DashAtteditM {
                 }
                 self.stage = Stage::Option;
             }
+            Stage::NewPosition => match &i {
+                Input::Point(p) => {
+                    if let Some(it) = self.items.get(self.cur).copied() {
+                        // Move the attribute to the picked point; a justified attribute keeps its
+                        // alignment point rigid with it (shift both by the same delta).
+                        set_text(s, it, |tx| {
+                            let delta = Vec3::new(p.x - tx.insert.x, p.y - tx.insert.y, 0.0);
+                            tx.insert = Vec3::new(p.x, p.y, tx.insert.z);
+                            if let Some(ap) = tx.align_pt {
+                                tx.align_pt = Some(ap + delta);
+                            }
+                        })?;
+                    }
+                    self.show_current(s);
+                    self.stage = Stage::Option;
+                }
+                Input::Enter => {
+                    // Enter keeps the current point.
+                    self.stage = Stage::Option;
+                }
+                _ => return Ok(Step::Continue),
+            },
             Stage::Find => match text {
                 Some(t) if !t.is_empty() => {
                     self.find = t;
