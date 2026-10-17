@@ -99,6 +99,12 @@ $f1Last = (($f1 -split "`r?`n" | Where-Object { $_ -match '\S' } | Select-Object
 if ($LASTEXITCODE -ne 0) { Write-Host "[check-f1] FAIL  $f1Last"; $fail = 1 }
 else { Write-Host "[check-f1] PASS  $f1Last" }
 
+# M4-F2: every generated sheet plots with content (not the empty template frame).
+$f2 = (& pwsh -NoProfile -File (Join-Path $s 'check-f2.ps1') 2>&1 | Out-String)
+$f2Last = (($f2 -split "`r?`n" | Where-Object { $_ -match '\S' } | Select-Object -Last 1))
+if ($LASTEXITCODE -ne 0) { Write-Host "[check-f2] FAIL  $f2Last"; $fail = 1 }
+else { Write-Host "[check-f2] PASS  $f2Last" }
+
 if ($fail -eq 0) {
     Write-Host 'PASS M4 pipeline (all twelve sheets generated; every check green; SCD-002 TX1 is the known D8 question)'
     exit 0

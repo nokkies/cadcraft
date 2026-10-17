@@ -175,8 +175,25 @@ if ($tplLayout -and $tplTbHandle) {
     $lines.Add('insert {"name":"A1 TITLE TEXT","at":[0,0],"attribs":{' + $attribJson + '}}')
     $lines.Add('insert {"name":"A1 BORDER","at":[0,0]}')
 }
-$lines.Add('mtext {"at":[768,72],"text":"PRELIMINARY","height":4,"style":"Romans","layer":"Preliminary Not For Construction"}')
-$lines.Add('mtext {"at":[753,66],"text":"NOT FOR CONSTRUCTION","height":4,"style":"Romans","layer":"Preliminary Not For Construction"}')
+
+# --- layer switching (M4-F2) -------------------------------------------------------
+# cadcraft's draw commands do NOT honour a per-command "layer" param: an entity lands on the
+# CURRENT layer. The template already carries all the schematic layers, but the current layer
+# after opening it is "Viewport" (frozen in the content viewport), so every drawn entity fell onto
+# "Viewport" and the plotted sheet came out empty. Fix: switch the current layer before each group
+# of same-layer entities. $curLayer tracks it; Emit-Layer switches only when it changes.
+$curLayer = ''
+function Emit-Layer {
+    param([string]$Name)
+    if ($Name -and $Name -ne $curLayer) {
+        $script:lines.Add('layer.current {"name":' + (ConvertTo-JsonStringValue -Value $Name) + '}')
+        $script:curLayer = $Name
+    }
+}
+# The PRELIMINARY / NOT FOR CONSTRUCTION stamps live on their own layer.
+Emit-Layer 'Preliminary Not For Construction'
+$lines.Add('mtext {"at":[768,72],"text":"PRELIMINARY","height":4,"style":"Romans"}')
+$lines.Add('mtext {"at":[753,66],"text":"NOT FOR CONSTRUCTION","height":4,"style":"Romans"}')
 
 # M4-C3: the library TERMINAL block defines a TERM_NO attribute. In the source the terminal number
 # is a numeric MText drawn at the terminal's own position, so we move it into the block's TERM_NO
@@ -197,6 +214,8 @@ $consumedNums = New-Object System.Collections.Generic.HashSet[string]
 $terminalCount = 0
 foreach ($e in $ents.entities) {
     $g = $e.geometry
+    # M4-F2: cadcraft draws on the CURRENT layer, so switch to this entity's source layer first.
+    Emit-Layer ([string]$e.layer)
     switch ($e.type) {
         'Line' {
             if ($g.PSObject.Properties.Name -contains 'a' -and $g.PSObject.Properties.Name -contains 'b') {
@@ -225,12 +244,18 @@ foreach ($e in $ents.entities) {
             }
         }
         'Circle' {
-            $isTerminal = ($e.layer -eq $TerminalLayer) -and ([Math]::Abs([double]$g.radius - $TerminalRadius) -lt 0.1)
+            # A terminal is a circle on the terminal layer that carries its number as a numeric text
+            # at its centre. That text test is the reliable signal: the terminal circle radius is not
+            # uniform across sheets (SCD-001/003/004/005 draw them at r=2.5, SCD-002 at r=3), so a
+            # fixed radius would misclassify a whole sheet. Accept a radius match too, for any
+            # terminal whose number text is absent.
+            $key = ([Math]::Round([double]$g.center.x, 0)).ToString([System.Globalization.CultureInfo]::InvariantCulture) + ',' +
+                   ([Math]::Round([double]$g.center.y, 0)).ToString([System.Globalization.CultureInfo]::InvariantCulture)
+            $isTerminal = ($e.layer -eq $TerminalLayer) -and
+                ($numByPos.ContainsKey($key) -or ([Math]::Abs([double]$g.radius - $TerminalRadius) -lt 0.1))
             if ($isTerminal) {
                 # DRAWING-WORK D1: the library terminal block replaces the drawn circle, and its
                 # number goes into the block's TERM_NO attribute (M4-C3).
-                $key = ([Math]::Round([double]$g.center.x, 0)).ToString([System.Globalization.CultureInfo]::InvariantCulture) + ',' +
-                       ([Math]::Round([double]$g.center.y, 0)).ToString([System.Globalization.CultureInfo]::InvariantCulture)
                 $attribs = ''
                 if ($numByPos.ContainsKey($key)) {
                     $attribs = ',"attribs":{"TERM_NO":' + (ConvertTo-JsonStringValue -Value $numByPos[$key]) + '}'
@@ -305,6 +330,7 @@ if ($name -match 'GAD-001') {
         $noteLines.Add(("TOTAL {0} mm vs BOM 2x2000=4000 mm" -f ([Math]::Round($tot,0)).ToString([System.Globalization.CultureInfo]::InvariantCulture)))
         $noteText = $noteLines -join '\n'
         # Place the note in a clear area (lower-left of the GA interior).
+        Emit-Layer '1T'
         $lines.Add('mtext {"at":[40,120],"text":' + (ConvertTo-JsonStringValue $noteText) + ',"height":3,"layer":"1T"}')
     }
 }

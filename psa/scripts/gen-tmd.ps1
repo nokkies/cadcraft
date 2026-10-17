@@ -144,12 +144,25 @@ if ($tplLayout -and $tplTbHandle) {
     $lines.Add('insert {"name":"A1 TITLE TEXT","at":[0,0],"attribs":{' + $attribJson + '}}')
     $lines.Add('insert {"name":"A1 BORDER","at":[0,0]}')
 }
-$lines.Add('mtext {"at":[768,72],"text":"PRELIMINARY","height":4,"style":"Romans","layer":"Preliminary Not For Construction"}')
-$lines.Add('mtext {"at":[753,66],"text":"NOT FOR CONSTRUCTION","height":4,"style":"Romans","layer":"Preliminary Not For Construction"}')
+# --- layer switching (M4-F2) -------------------------------------------------------
+# cadcraft draws on the CURRENT layer (a per-command "layer" param is ignored), so switch the
+# current layer before each group of same-layer entities or everything lands on "Viewport".
+$curLayer = ''
+function Emit-Layer {
+    param([string]$Name)
+    if ($Name -and $Name -ne $curLayer) {
+        $script:lines.Add('layer.current {"name":' + (ConvertTo-JsonStringValue -Value $Name) + '}')
+        $script:curLayer = $Name
+    }
+}
+Emit-Layer 'Preliminary Not For Construction'
+$lines.Add('mtext {"at":[768,72],"text":"PRELIMINARY","height":4,"style":"Romans"}')
+$lines.Add('mtext {"at":[753,66],"text":"NOT FOR CONSTRUCTION","height":4,"style":"Romans"}')
 
 $carried = 0
 foreach ($e in $ents.entities) {
     $g = $e.geometry
+    Emit-Layer ([string]$e.layer)
     switch ($e.type) {
         'Line' {
             if ($g.PSObject.Properties.Name -contains 'a' -and $g.PSObject.Properties.Name -contains 'b') {
