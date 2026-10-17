@@ -1,15 +1,16 @@
 # tbc-notes.ps1 -- cadcraft card M3 / DRAWING-WORK D9
 #
 # Collects every "TBC" / "TO BE CONFIRMED" / "TBD" text found in the drawings into
-# psa/QUESTIONS.md under `From the drawings`, one line each with the sheet number. The list
-# is for Reinach and the engineering manager; PSA Fusion does not answer them.
+# $D\fusion\QUESTIONS-drawings.md (PRIVATE, outside the repository) under `From the drawings`, one
+# line each with the sheet number. The list is for Reinach and the engineering manager; PSA Fusion
+# does not answer them. It never writes into the public psa/QUESTIONS.md.
 #
 # It reads the texts JSON (card M2-C1), so run that first. A note that spans several
 # sentences (an MTEXT notes block) is reported once, with the whole block, because the
 # question is the whole note -- splitting it would lose the context the answer needs.
 #
-# Writes psa/QUESTIONS.md (in the repository) by replacing the `## From the drawings`
-# section. It never touches the `## Open` or `## Answered` sections.
+# Writes $D\fusion\QUESTIONS-drawings.md (private) by replacing the `## From the drawings`
+# section. It never touches the public psa/QUESTIONS.md.
 
 [CmdletBinding()]
 param(
@@ -29,9 +30,12 @@ function Get-PSADrawingsRoot {
 }
 
 $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)   # psa/scripts -> psa -> repo
-if ([string]::IsNullOrWhiteSpace($QuestionsFile)) { $QuestionsFile = Join-Path $repoRoot 'psa\QUESTIONS.md' }
-
 $D = Get-PSADrawingsRoot
+# The drawing notes carry client names, sheet numbers and signal tags, so they are PRIVATE and
+# live outside the repository (PLAN.md: no client/site/project/signal data in the repo). Default
+# to the private file under $D, never psa/QUESTIONS.md.
+if ([string]::IsNullOrWhiteSpace($QuestionsFile)) { $QuestionsFile = Join-Path $D 'fusion\QUESTIONS-drawings.md' }
+
 if ([string]::IsNullOrWhiteSpace($TextsDir)) { $TextsDir = Join-Path $D 'fusion\texts' }
 if (-not (Test-Path -LiteralPath $TextsDir)) { throw "texts dir not found: $TextsDir (run card M2-C1)" }
 if (-not (Test-Path -LiteralPath $QuestionsFile)) { throw "questions file not found: $QuestionsFile" }

@@ -1,9 +1,9 @@
 # gen-all.ps1 -- regenerate every working sheet with cadcraft and run the full check suite.
 #
-# The M4 pipeline as one command: for each of the twelve NNNN working sheets it runs the matching
-# generator (gen-bom / gen-tmd / gen-scd), then runs every automated check over the generated set
-# (check-all -Dir, check-d1, wire-consistency, balloons, tbc-notes). Prints a one-line summary per
-# stage and a final PASS/FAIL. Exit 0 only when the whole pipeline is green.
+# The M4 pipeline as one command: for each of the twelve working sheets ($Project.sheets) it runs
+# the matching generator (gen-bom / gen-tmd / gen-scd), then runs every automated check over the
+# generated set (check-all -Dir, check-d1, wire-consistency, balloons, tbc-notes). Prints a one-line
+# summary per stage and a final PASS/FAIL. Exit 0 only when the whole pipeline is green.
 #
 # The known open question (SCD-002 TX1, the 2.0mm terminal-strip row numbers) is reported but does
 # not fail the run -- it is an engineering-fact question tracked in psa/QUESTIONS.md, not a
@@ -26,7 +26,8 @@ function Get-PSADrawingsRoot {
 }
 
 $D = Get-PSADrawingsRoot
-$working = Join-Path $D '3. Working'
+. (Join-Path $PSScriptRoot 'project.ps1')
+$working = Join-Path $D $Project.workingDir
 $outDir = Join-Path $D 'fusion\out'
 $s = $PSScriptRoot
 
@@ -46,15 +47,16 @@ function Invoke-Stage {
 if (-not $SkipGenerate) {
     Write-Host '=== generate ==='
     # BOM (GAD-002) and the GA (GAD-001) both go through gen-scd's rebuild; the BOM has its own
-    # faithful generator. TMDs go through gen-tmd, SCDs through gen-scd.
-    $bom = Join-Path $working 'NNNN-IC-GAD-002_A.dwg'
-    $ga  = Join-Path $working 'NNNN-IC-GAD-001_A.dwg'
+    # faithful generator. TMDs go through gen-tmd, SCDs through gen-scd. The sheet names come from
+    # $Project.sheets (the private project settings), selected by discipline.
+    $bom = Join-Path $working (((@($Project.sheets | Where-Object { $_ -match '-IC-GAD-002' })[0])) + '.dwg')
+    $ga  = Join-Path $working (((@($Project.sheets | Where-Object { $_ -match '-IC-GAD-001' })[0])) + '.dwg')
     Invoke-Stage 'gen-bom' @((Join-Path $s 'gen-bom.ps1'), '-BomDrawing', $bom) | Out-Null
     Invoke-Stage 'gen-ga'  @((Join-Path $s 'gen-scd.ps1'), '-SchematicDrawing', $ga) | Out-Null
-    foreach ($n in 'NNNN-IC-TMD-001_A','NNNN-IC-TMD-002_A','NNNN-IC-TMD-003_A','NNNN-IC-TMD-004_A','NNNN-IC-TMD-005_A') {
+    foreach ($n in @($Project.sheets | Where-Object { $_ -match '-IC-TMD-' } | Sort-Object)) {
         Invoke-Stage "gen-tmd:$n" @((Join-Path $s 'gen-tmd.ps1'), '-BomDrawing', (Join-Path $working ($n + '.dwg'))) | Out-Null
     }
-    foreach ($n in 'NNNN-IC-SCD-001_A','NNNN-IC-SCD-002_A','NNNN-IC-SCD-003_A','NNNN-IC-SCD-004_A','NNNN-IC-SCD-005_A') {
+    foreach ($n in @($Project.sheets | Where-Object { $_ -match '-IC-SCD-' } | Sort-Object)) {
         Invoke-Stage "gen-scd:$n" @((Join-Path $s 'gen-scd.ps1'), '-SchematicDrawing', (Join-Path $working ($n + '.dwg'))) | Out-Null
     }
 }

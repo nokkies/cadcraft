@@ -73,7 +73,8 @@ function Invoke-CliSteps {
 }
 
 $D = Get-PSADrawingsRoot
-if ([string]::IsNullOrWhiteSpace($Template)) { $Template = Join-Path $D 'Template\NNNN-TEMPLATE_A.dwg' }
+. (Join-Path $PSScriptRoot 'project.ps1')
+if ([string]::IsNullOrWhiteSpace($Template)) { $Template = Join-Path $D ($Project.template -replace '/', '\') }
 if ([string]::IsNullOrWhiteSpace($OutDir)) { $OutDir = Join-Path $D 'fusion\out' }
 if ([string]::IsNullOrWhiteSpace($SheetsDir)) { $SheetsDir = Join-Path $D 'fusion\sheets' }
 if (-not (Test-Path -LiteralPath $Template)) { throw "template not found: $Template" }

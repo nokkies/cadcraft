@@ -5,7 +5,7 @@
 # to $D\fusion\texts\<name>.json.
 #
 # The card's check: one JSON per drawing, each with at least one text whose value is the
-# drawing number from the file name (e.g. NNNN-IC-GAD-001).
+# drawing number from the file name (e.g. <project>-IC-GAD-001).
 #
 # IMPORTANT, learned on card M1-C5: `texts` reads the CURRENT SPACE, which after opening a
 # PSA drawing is model space. The title block -- and the drawing number inside it -- lives in

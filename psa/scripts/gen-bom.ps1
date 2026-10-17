@@ -3,7 +3,7 @@
 # Builds the bill-of-materials sheet with cadcraft (not the C# generator). It reads the item
 # rows from the existing BOM drawing (so the data is the current BOM, not a copy), writes a
 # cadcraft script to $D\fusion\sheets\bom.scr, and runs it against the template to produce
-# $D\fusion\out\NNNN-IC-GAD-002_A.dwg.
+# $D\fusion\out\<bom sheet>.dwg (the -IC-GAD-002 sheet from $Project.sheets).
 #
 # The script it emits follows psa\scripts\sheets\bom.scr.example: insert the title block with
 # attributes, draw the table with line + mtext, saveas. The row data is read from the current
@@ -96,8 +96,10 @@ function Invoke-CliSteps {
 }
 
 $D = Get-PSADrawingsRoot
-if ([string]::IsNullOrWhiteSpace($Template)) { $Template = Join-Path $D 'Template\NNNN-TEMPLATE_A.dwg' }
-if ([string]::IsNullOrWhiteSpace($BomDrawing)) { $BomDrawing = Join-Path $D '3. Working\NNNN-IC-GAD-002_A.dwg' }
+. (Join-Path $PSScriptRoot 'project.ps1')
+$bomSheet = @($Project.sheets | Where-Object { $_ -match '-IC-GAD-002' })[0]
+if ([string]::IsNullOrWhiteSpace($Template)) { $Template = Join-Path $D ($Project.template -replace '/', '\') }
+if ([string]::IsNullOrWhiteSpace($BomDrawing)) { $BomDrawing = Join-Path $D ($Project.workingDir + '\' + $bomSheet + '.dwg') }
 if ([string]::IsNullOrWhiteSpace($OutDir)) { $OutDir = Join-Path $D 'fusion\out' }
 if ([string]::IsNullOrWhiteSpace($SheetsDir)) { $SheetsDir = Join-Path $D 'fusion\sheets' }
 
@@ -194,7 +196,7 @@ foreach ($e in $ents.entities) {
     }
 }
 
-$outDwg = Join-Path $OutDir 'NNNN-IC-GAD-002_A.dwg'
+$outDwg = Join-Path $OutDir ($bomSheet + '.dwg')
 $lines.Add('saveas {"path":' + (ConvertTo-JsonStringValue -Value $outDwg) + ',"version":2018}')
 
 $scrPath = Join-Path $SheetsDir 'bom.scr'

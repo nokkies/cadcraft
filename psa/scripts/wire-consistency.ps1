@@ -20,7 +20,8 @@
 #
 # The check is PROJECT-SCOPED: a termination sheet's wire numbers are matched against the
 # schematic sheets of the SAME project (the AAAA segment of the drawing number). The Reference
-# set is project RRRR, whose schematic masters are not in this folder, so its TMD sheets are
+# set is the reference project ($Project.referenceProject), whose schematic masters are not in
+# this folder, so its TMD sheets are
 # reported as "no schematic master in this set" rather than as orphans -- an orphan is only a
 # real error when the project's own schematics are present to carry the number.
 
@@ -31,8 +32,8 @@ param(
     # The project under construction (the generator's output). D5 is about wire numbers typed
     # by hand into the generator, so only this project's sheets are checked; other projects in
     # the Reference set use a different discipline/wire-numbering convention and are reported
-    # as out-of-scope, not as failures.
-    [string]$TargetProject = 'NNNN'
+    # as out-of-scope, not as failures. Defaults to $Project.project (the private settings).
+    [string]$TargetProject
 )
 
 Set-StrictMode -Version 3.0
@@ -47,6 +48,8 @@ function Get-PSADrawingsRoot {
 }
 
 $D = Get-PSADrawingsRoot
+. (Join-Path $PSScriptRoot 'project.ps1')
+if ([string]::IsNullOrWhiteSpace($TargetProject)) { $TargetProject = $Project.project }
 if ([string]::IsNullOrWhiteSpace($TextsDir)) { $TextsDir = Join-Path $D 'fusion\texts' }
 if ([string]::IsNullOrWhiteSpace($ReportFile)) { $ReportFile = Join-Path $D 'fusion\wire-consistency.txt' }
 if (-not (Test-Path -LiteralPath $TextsDir)) { throw "texts dir not found: $TextsDir (run card M2-C1)" }

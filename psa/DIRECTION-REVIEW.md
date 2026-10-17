@@ -24,7 +24,7 @@
 
 **Goal 2 — real, substantial, but the key comparison is not yet done.**
 The drawing pipeline lives *outside the repo* (private folder `$D` = `PSA_DRAWINGS`, a client
-Solar Farm project; not committed here — clean-room rule). It generates 12 sheets (GAD-001/002,
+project; not committed here — clean-room rule). It generates 12 sheets (GAD-001/002,
 SCD-001..005, TMD-001..005) from `NNNN-TEMPLATE_A.dwg` via `psa/scripts/gen-*.ps1`, and `gen-all.ps1`
 runs a check suite over them. D1 (terminal *blocks* not drawn circles), D3 (rail cut-lengths), D4 (terminal
 pin numbers), D5 (wire-number consistency), D6 (balloons↔BOM), D7 (cross-refs), D9 (TBC notes) are DONE.

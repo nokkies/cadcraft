@@ -69,14 +69,15 @@ function Invoke-CliSteps {
 }
 
 $D = Get-PSADrawingsRoot
-if ([string]::IsNullOrWhiteSpace($Template)) { $Template = Join-Path $D 'Template\NNNN-TEMPLATE_A.dwg' }
+. (Join-Path $PSScriptRoot 'project.ps1')
+if ([string]::IsNullOrWhiteSpace($Template)) { $Template = Join-Path $D ($Project.template -replace '/', '\') }
 if ([string]::IsNullOrWhiteSpace($OutDir)) { $OutDir = Join-Path $D 'fusion\out' }
 if ([string]::IsNullOrWhiteSpace($SheetsDir)) { $SheetsDir = Join-Path $D 'fusion\sheets' }
 if (-not (Test-Path -LiteralPath $Template)) { throw "template not found: $Template" }
 if (-not (Test-Path -LiteralPath $BomDrawing)) { throw "TMD drawing not found: $BomDrawing" }
 foreach ($d in @($OutDir, $SheetsDir)) { if (-not (Test-Path -LiteralPath $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null } }
 $cli = Resolve-CadcraftCli
-$name = Split-Path -Leaf $BomDrawing                       # e.g. NNNN-IC-TMD-001_A.dwg
+$name = Split-Path -Leaf $BomDrawing                       # e.g. <project>-IC-TMD-001_A.dwg
 
 # --- title-block attributes from the paper-space layout ----------------------------
 $tbAttribs = @{}

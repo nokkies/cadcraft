@@ -45,12 +45,13 @@ function Get-PSADrawingsRoot {
 }
 
 $D = Get-PSADrawingsRoot
+. (Join-Path $PSScriptRoot 'project.ps1')
 if ([string]::IsNullOrWhiteSpace($TextsDir)) { $TextsDir = Join-Path $D 'fusion\texts' }
 if ([string]::IsNullOrWhiteSpace($ReportFile)) { $ReportFile = Join-Path $D 'fusion\balloons.txt' }
 if (-not (Test-Path -LiteralPath $TextsDir)) { throw "texts dir not found: $TextsDir (run card M2-C1)" }
 
-# Find the GA and BOM sheets of the project under construction (NNNN). The GA carries the
-# balloons; the BOM carries the item list.
+# Find the GA and BOM sheets of the project under construction ($Project.project). The GA carries
+# the balloons; the BOM carries the item list.
 $gaDocs = @()
 $bomDocs = @()
 Get-ChildItem -LiteralPath $TextsDir -Filter '*.json' -File | Sort-Object Name | ForEach-Object {
@@ -58,7 +59,7 @@ Get-ChildItem -LiteralPath $TextsDir -Filter '*.json' -File | Sort-Object Name |
     $stem = ([string]$doc.drawing) -replace '\.dwg$', ''
     $parts = $stem -split '-'
     if ($parts.Count -lt 3) { return }
-    if ($parts[0] -ne 'NNNN') { return }   # project under construction
+    if ($parts[0] -ne $Project.project) { return }   # project under construction
     $disc = $parts[2]
     if ($disc -eq 'GAD') {
         # GAD-001 is the general arrangement (balloons); GAD-002 is the BOM.

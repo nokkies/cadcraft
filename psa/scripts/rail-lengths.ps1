@@ -60,7 +60,9 @@ function Invoke-CliSteps {
 }
 
 $D = Get-PSADrawingsRoot
-if ([string]::IsNullOrWhiteSpace($GaDrawing)) { $GaDrawing = Join-Path $D 'fusion\out\NNNN-IC-GAD-001_A.dwg' }
+. (Join-Path $PSScriptRoot 'project.ps1')
+$gaSheet = @($Project.sheets | Where-Object { $_ -match '-IC-GAD-001' })[0]
+if ([string]::IsNullOrWhiteSpace($GaDrawing)) { $GaDrawing = Join-Path $D ('fusion\out\' + $gaSheet + '.dwg') }
 if ([string]::IsNullOrWhiteSpace($DimensionsCsv)) { $DimensionsCsv = Join-Path $D 'fusion\dimensions.csv' }
 if (-not (Test-Path -LiteralPath $GaDrawing)) { throw "GA not found: $GaDrawing" }
 if (-not (Test-Path -LiteralPath $DimensionsCsv)) { throw "dimensions.csv not found: $DimensionsCsv" }

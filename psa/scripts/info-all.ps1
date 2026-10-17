@@ -67,7 +67,7 @@ Write-Host "drawings     : $($rows.Count)"
 # different folders (the Reference tree has several) do not overwrite each other. The
 # relative path is flattened into ONE file name: every path separator becomes '__' and
 # every character Windows forbids in a name becomes '_'.
-#   3. Working\NNNN-IC-GAD-001_A.dwg -> 3. Working__NNNN-IC-GAD-001_A.dwg.json
+#   3. Working\<project>-IC-GAD-001_A.dwg -> 3. Working__<project>-IC-GAD-001_A.dwg.json
 function Get-JsonName {
     param([string]$Path, [string]$Root)
     $rel = $Path

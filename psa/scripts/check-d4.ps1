@@ -28,15 +28,23 @@ function Get-PSADrawingsRoot {
 }
 
 $D = Get-PSADrawingsRoot
+. (Join-Path $PSScriptRoot 'project.ps1')
 if ([string]::IsNullOrWhiteSpace($PinsCsv)) { $PinsCsv = Join-Path $D 'fusion\pins.csv' }
 if ([string]::IsNullOrWhiteSpace($TextsDir)) { $TextsDir = Join-Path $D 'fusion\texts' }
 if (-not (Test-Path -LiteralPath $PinsCsv)) { throw "pins.csv not found: $PinsCsv (run the D4 datasheet step)" }
 
-# module -> sheet, and the channel-name regex that sheet uses.
-$sheetToModule = [ordered]@{
-    'NNNN-IC-SCD-003_A' = @{ module='5069-IB16'; pattern='^IN\s+(\d+)$' }
-    'NNNN-IC-SCD-004_A' = @{ module='5069-OB16'; pattern='^OUT\s+(\d+)$' }
-    'NNNN-IC-SCD-005_A' = @{ module='5069-OF4';  pattern='^CH(\d)\s+(I\+|I-|V\+|V-)$' }
+# module -> sheet, and the channel-name regex that sheet uses. The sheet file names come from the
+# private project settings ($Project.ioSheets: DI, DO, AO); the module and channel pattern are
+# per I/O type, not per project.
+$ioCfg = @{
+    DI = @{ module='5069-IB16'; pattern='^IN\s+(\d+)$' }
+    DO = @{ module='5069-OB16'; pattern='^OUT\s+(\d+)$' }
+    AO = @{ module='5069-OF4';  pattern='^CH(\d)\s+(I\+|I-|V\+|V-)$' }
+}
+$sheetToModule = [ordered]@{}
+foreach ($role in 'DI', 'DO', 'AO') {
+    $sheet = [string]$Project.ioSheets.$role
+    if ($sheet) { $sheetToModule[$sheet] = $ioCfg[$role] }
 }
 
 # pins.csv -> per module, the set of channels (and their terminal numbers).
