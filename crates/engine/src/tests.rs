@@ -1261,6 +1261,41 @@ fn block_rotation_property_turns_attribute_text() {
 }
 
 #[test]
+fn attedit_one_at_a_time_sets_height_angle_style() {
+    // Build a block reference with one editable attribute, then drive -ATTEDIT one at a time and
+    // set its height, rotation and text style (AutoCAD's Height/Angle/Style options).
+    let mut s = Session::new();
+    s.execute("attdef", &json!({"tag": "TAG", "at": [10, 0], "default": "D", "height": 2.5})).unwrap();
+    let def = s.doc().unwrap().model.last().unwrap().handle;
+    s.execute("block", &json!({"name": "B", "base": [0, 0], "handles": [def.hex()], "keep": "delete"})).unwrap();
+    s.execute("insert", &json!({"name": "B", "at": [0, 0], "attribs": {"TAG": "hello"}})).unwrap();
+    // -ATTEDIT: one at a time, no block/tag/value filter (defaults "*"), select all, then set
+    // Height, then Angle, then Style, then Next (Enter) to finish.
+    for t in ["-attedit", "Y", "", "", "", "all", ""] {
+        s.cmdline(t).unwrap();
+    }
+    // Option stage: Height -> new height.
+    s.cmdline("H").unwrap();
+    s.cmdline("5").unwrap();
+    // Option stage: Angle -> new rotation (degrees).
+    s.cmdline("A").unwrap();
+    s.cmdline("90").unwrap();
+    // Option stage: Style -> new text style.
+    s.cmdline("S").unwrap();
+    s.cmdline("Standard").unwrap();
+    // Next (Enter) advances past the only attribute and finishes.
+    s.cmdline("").unwrap();
+
+    let doc = s.doc().unwrap();
+    let Some(EntityKind::Insert(i)) = doc.model.last().map(|e| &e.kind) else { panic!("no insert") };
+    let t = &i.attribs[0].text;
+    assert!((t.height - 5.0).abs() < 1e-9, "height set to 5, got {}", t.height);
+    assert!((t.rotation - std::f64::consts::FRAC_PI_2).abs() < 1e-9, "angle set to 90deg, got {}", t.rotation);
+    assert_eq!(t.style, "Standard");
+    assert_eq!(t.value, "hello", "the value is untouched");
+}
+
+#[test]
 fn bare_variable_name_runs_setvar() {
     let mut s = Session::new();
     s.cmdline("pickadd").unwrap();

@@ -83,10 +83,19 @@ fn dash_attedit_one_at_a_time_edits_the_selected_attributes() {
     let mut s = with_block();
     let h = handle(&insert(&mut s, 100.0, json!({"T": "abc"})));
     type_lines(&mut s, &["-attedit", "y", "", "T", "", "105,0", ""]);
-    assert!(s.prompt_text().contains("[Value/Layer/Color/Next] <N>"), "{}", s.prompt_text());
-    // Unsupported options say so and keep the prompt.
+    assert!(s.prompt_text().contains("[Value/Position/Height/Angle/Style/Layer/Color/Next] <N>"), "{}", s.prompt_text());
+    // Position is still not supported; it says so and keeps the prompt.
     s.cmdline("p").unwrap();
     assert!(s.log.iter().any(|l| l.contains("Position is not available yet")), "{:?}", s.log);
+    // Height, Angle and Style are supported: set them, then edit the value by replacing a string.
+    type_lines(&mut s, &["h", "4", "a", "45", "s", "Standard"]);
+    {
+        let EntityKind::Insert(i) = &s.doc().unwrap().entity(h).unwrap().kind else { panic!("not an insert") };
+        let t = &i.attribs.iter().find(|a| a.tag == "T").unwrap().text;
+        assert!((t.height - 4.0).abs() < 1e-9, "height set to 4, got {}", t.height);
+        assert!((t.rotation - 45f64.to_radians()).abs() < 1e-9, "angle set to 45deg, got {}", t.rotation);
+        assert_eq!(t.style, "Standard");
+    }
     type_lines(&mut s, &["v", "c", "b", "B", "v", "r", "replaced value", "n"]);
     assert!(s.running.is_none(), "{}", s.prompt_text());
     assert_eq!(value(&s, h, "T"), "replaced value");
