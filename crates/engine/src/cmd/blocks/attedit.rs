@@ -149,6 +149,71 @@ fn set_props(s: &mut Session, (h, k): (Handle, usize), f: impl FnOnce(&mut Attri
     Ok(())
 }
 
+/// Change the text geometry (height, rotation, style) of attribute `k` of block reference `h`.
+fn set_text(s: &mut Session, (h, k): (Handle, usize), f: impl FnOnce(&mut cadcraft_doc::Text)) -> Result<()> {
+    s.doc_mut()?.modify_entity(h, |e| {
+        if let EntityKind::Insert(ins) = &mut e.kind
+            && let Some(a) = ins.attribs.get_mut(k)
+        {
+            f(&mut a.text);
+        }
+    })?;
+    Ok(())
+}
+
+/// The height attribute `k` of block reference `h` is drawn with: its own, else its definition's.
+fn current_height(s: &Session, (h, k): (Handle, usize)) -> Option<f64> {
+    current_text_prop(s, (h, k)).map(|t| t.height)
+}
+fn current_angle(s: &Session, (h, k): (Handle, usize)) -> Option<f64> {
+    current_text_prop(s, (h, k)).map(|t| t.rotation.to_degrees())
+}
+fn current_style(s: &Session, (h, k): (Handle, usize)) -> Option<String> {
+    current_text_prop(s, (h, k)).map(|t| t.style)
+}
+
+/// The text geometry attribute `k` of block reference `h` is drawn with: its own height/rotation/
+/// style, else its definition's (the definition is the ATTDEF with the matching tag).
+fn current_text_prop(s: &Session, (h, k): (Handle, usize)) -> Option<cadcraft_doc::Text> {
+    let d = s.doc().ok()?;
+    let e = d.entity(h)?;
+    let EntityKind::Insert(ins) = &e.kind else { return None };
+    let a = ins.attribs.get(k)?;
+    let def = d
+        .block(&ins.block)
+        .and_then(|b| b.entities.iter().find(|be| matches!(&be.kind, EntityKind::AttDef(ad) if ad.tag.eq_ignore_ascii_case(&a.tag))))
+        .map(|be| match &be.kind {
+            EntityKind::AttDef(ad) => ad.text.clone(),
+            _ => a.text.clone(),
+        });
+    // The attribute's own text already carries the definition's height/rotation/style when they
+    // are not overridden; fall back to the definition for any that read as unset.
+    let mut t = a.text.clone();
+    if let Some(dt) = def {
+        if t.height <= 0.0 {
+            t.height = dt.height;
+        }
+        if t.style == "Standard" && dt.style != "Standard" {
+            t.style = dt.style;
+        }
+    }
+    Some(t)
+}
+
+/// Parse a typed number (a plain decimal, as the `NAME` accept offers). Rejects anything else.
+fn parse_number(t: &str) -> Option<f64> {
+    let t = t.trim();
+    if t.is_empty() || !t.bytes().all(|b| b.is_ascii_digit() || matches!(b, b'+' | b'-' | b'.' | b'e' | b'E')) {
+        return None;
+    }
+    t.parse::<f64>().ok().filter(|v| v.is_finite())
+}
+
+/// Format a number for a prompt default without trailing zeros.
+fn format_number(v: f64) -> String {
+    if v == v.trunc() && v.abs() < 1e15 { format!("{}", v as i64) } else { format!("{v}") }
+}
+
 /// The layer and colour attribute `k` of block reference `h` is drawn with: its own, else its
 /// definition's (layer 0 is the reference's layer).
 fn current_props(s: &Session, (h, k): (Handle, usize)) -> Option<(String, Color)> {
@@ -281,6 +346,9 @@ enum Stage {
     Layer,
     Color,
     TrueColor,
+    NewHeight,
+    NewAngle,
+    NewStyle,
     Find,
     Replace,
 }
@@ -356,9 +424,32 @@ impl Interactive for DashAtteditM {
             Stage::TagSpec => Prompt::new("Enter attribute tag specification", Accept::TEXT).default("*"),
             Stage::ValueSpec => Prompt::new("Enter attribute value specification", Accept::TEXT).default("*"),
             Stage::Select => Prompt::new("Select attributes", Accept::SELECT),
-            Stage::Option => Prompt::new("Enter an option", KW).kw(&["Value", "Layer", "Color", "Next"]).default("N"),
+            Stage::Option => {
+                Prompt::new("Enter an option", KW).kw(&["Value", "Position", "Height", "Angle", "Style", "Layer", "Color", "Next"]).default("N")
+            }
             Stage::ValueKind => Prompt::new("Enter type of value modification", KW).kw(&["Change", "Replace"]).default("R"),
             Stage::NewValue => Prompt::new("Enter new attribute value", Accept::TEXT),
+            Stage::NewHeight => {
+                let p = Prompt::new("Enter new height for attribute", NAME);
+                match self.items.get(self.cur).and_then(|it| current_height(s, *it)) {
+                    Some(h) => p.default(format_number(h)),
+                    None => p,
+                }
+            }
+            Stage::NewAngle => {
+                let p = Prompt::new("Enter rotation for attribute", NAME);
+                match self.items.get(self.cur).and_then(|it| current_angle(s, *it)) {
+                    Some(a) => p.default(format_number(a)),
+                    None => p,
+                }
+            }
+            Stage::NewStyle => {
+                let p = Prompt::new("Enter new text style for attribute", Accept::TEXT);
+                match self.items.get(self.cur).and_then(|it| current_style(s, *it)) {
+                    Some(st) => p.default(st),
+                    None => p,
+                }
+            }
             Stage::Layer => {
                 let p = Prompt::new("Enter new layer name", Accept::TEXT);
                 match cur {
@@ -432,6 +523,10 @@ impl Interactive for DashAtteditM {
                 Input::Keyword(k) if k == "Value" => self.stage = Stage::ValueKind,
                 Input::Keyword(k) if k == "Layer" => self.stage = Stage::Layer,
                 Input::Keyword(k) if k == "Color" => self.stage = Stage::Color,
+                Input::Keyword(k) if k == "Height" => self.stage = Stage::NewHeight,
+                Input::Keyword(k) if k == "Angle" => self.stage = Stage::NewAngle,
+                Input::Keyword(k) if k == "Style" => self.stage = Stage::NewStyle,
+                Input::Keyword(k) if k == "Position" => return Err(EngineError::Other("Position is not available yet.".into())),
                 Input::Keyword(_) | Input::Enter => {
                     self.cur += 1;
                     if self.cur >= self.items.len() {
@@ -441,10 +536,10 @@ impl Interactive for DashAtteditM {
                 }
                 Input::Text(t) => {
                     let tl = t.trim().to_ascii_lowercase();
-                    let later = ["Position", "Height", "Angle", "Style"];
-                    return match later.iter().find(|k| !tl.is_empty() && k.to_ascii_lowercase().starts_with(&tl)) {
-                        Some(k) => Err(EngineError::Other(format!("{k} is not available yet."))),
-                        None => Err(invalid_keyword()),
+                    return if !tl.is_empty() && "position".starts_with(&tl) {
+                        Err(EngineError::Other("Position is not available yet.".into()))
+                    } else {
+                        Err(invalid_keyword())
                     };
                 }
                 _ => {}
@@ -492,6 +587,47 @@ impl Interactive for DashAtteditM {
                     };
                     if let Some(it) = self.items.get(self.cur).copied() {
                         set_props(s, it, |p| p.color = Some(c))?;
+                    }
+                }
+                self.stage = Stage::Option;
+            }
+            Stage::NewHeight => {
+                let Some(t) = text else { return Ok(Step::Continue) };
+                if !t.trim().is_empty() {
+                    let h = parse_number(&t).ok_or_else(|| EngineError::Other("Enter a positive height.".into()))?;
+                    if !(h.is_finite() && h > 0.0) {
+                        return Err(EngineError::Other("Enter a positive height.".into()));
+                    }
+                    if let Some(it) = self.items.get(self.cur).copied() {
+                        set_text(s, it, |tx| tx.height = h)?;
+                    }
+                }
+                self.stage = Stage::Option;
+            }
+            Stage::NewAngle => {
+                let Some(t) = text else { return Ok(Step::Continue) };
+                if !t.trim().is_empty() {
+                    let deg = parse_number(&t).ok_or_else(|| EngineError::Other("Enter a rotation angle in degrees.".into()))?;
+                    if !deg.is_finite() {
+                        return Err(EngineError::Other("Enter a rotation angle in degrees.".into()));
+                    }
+                    if let Some(it) = self.items.get(self.cur).copied() {
+                        set_text(s, it, |tx| tx.rotation = deg.to_radians())?;
+                    }
+                }
+                self.stage = Stage::Option;
+            }
+            Stage::NewStyle => {
+                let Some(t) = text else { return Ok(Step::Continue) };
+                let t = t.trim();
+                if !t.is_empty() {
+                    let name = s
+                        .doc()?
+                        .text_style(t)
+                        .map(|st| st.name.clone())
+                        .ok_or_else(|| EngineError::Other(format!("Cannot find text style \"{t}\".")))?;
+                    if let Some(it) = self.items.get(self.cur).copied() {
+                        set_text(s, it, |tx| tx.style = name)?;
                     }
                 }
                 self.stage = Stage::Option;
