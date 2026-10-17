@@ -60,6 +60,30 @@ fn json_block_rename_repoints_every_insert() {
 }
 
 #[test]
+fn rename_viewport_configuration() {
+    let mut s = Session::new();
+    s.execute("line", &json!({ "points": [[0, 0], [100, 50]] })).unwrap();
+    s.execute("zoom", &json!({ "mode": "extents" })).unwrap();
+    s.execute("-vports", &json!({ "option": "2", "arrangement": "vertical" })).unwrap();
+    s.execute("-vports", &json!({ "option": "save", "name": "Two" })).unwrap();
+    assert!(s.doc().unwrap().vports.iter().any(|c| c.name == "Two"));
+    // JSON form: the saved configuration is renamed; *Active is left alone.
+    s.execute("rename", &json!({ "table": "vport", "from": "two", "to": "Pair" })).unwrap();
+    let d = s.doc().unwrap();
+    assert!(d.vports.iter().any(|c| c.name == "Pair"), "renamed to Pair");
+    assert!(!d.vports.iter().any(|c| c.name == "Two"), "the old name is gone");
+    assert!(d.vports.iter().any(|c| c.name == "*Active"), "*Active stays");
+    // The *Active configuration cannot be renamed, an unknown name and a duplicate are refused.
+    assert!(s.execute("rename", &json!({ "table": "vport", "from": "*Active", "to": "X" })).is_err());
+    assert!(s.execute("rename", &json!({ "table": "vport", "from": "Nope", "to": "X" })).is_err());
+    assert!(s.execute("rename", &json!({ "table": "vport", "from": "Pair", "to": "*Active" })).is_err());
+    // Typed -RENAME: type VPort, old name, new name.
+    s.script("-RENAME VP Pair Trio\n").unwrap();
+    assert!(s.running.is_none(), "{}", s.prompt_text());
+    assert!(s.doc().unwrap().vports.iter().any(|c| c.name == "Trio"), "{:?}", s.log);
+}
+
+#[test]
 fn rename_prompts_type_old_and_new_name() {
     let mut s = drawing();
     s.cmdline("-RENAME").unwrap();
@@ -81,7 +105,7 @@ fn rename_prompts_type_old_and_new_name() {
     assert!(s.running.is_none(), "{}", s.prompt_text());
     assert!(s.doc().unwrap().layer("Newer").is_some());
     let n = s.log.len();
-    s.script("-RENAME VP a b\nLINE 0,0 2,0\n\n").unwrap();
+    s.script("-RENAME M a b\nLINE 0,0 2,0\n\n").unwrap();
     assert!(s.running.is_none(), "{}", s.prompt_text());
     assert!(s.log[n..].iter().any(|l| l.contains("not available yet")), "{:?}", &s.log[n..]);
     assert_eq!(s.doc().unwrap().model.iter().filter(|e| matches!(e.kind, EntityKind::Line(_))).count(), 2);
