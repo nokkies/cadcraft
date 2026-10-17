@@ -1,0 +1,20 @@
+# Repro for BATTMAN multiline switch.
+#
+# Setup (non-interactive): a block TAG with a single-line attribute definition LABEL.
+attdef {"tag":"LABEL","at":[2,2],"default":"Site","height":2.0}
+#   (capture the attdef handle, then:)
+#   block {"name":"TAG","base":[0,0],"handles":["<attdef-handle>"],"keep":"delete"}
+#
+# Switch the definition to multiline (JSON form, no prompts):
+#   battman {"name":"TAG","action":"edit","tag":"LABEL","multiline":true}
+#   -> the definition's text becomes a multiline text (contents "Site", read_as "Site");
+#      a new INSERT carries it.
+#   battman {"name":"TAG","action":"edit","tag":"LABEL","multiline":false}
+#   -> back to single-line (the multiline text is dropped).
+#
+# Typed form: BATTMAN, pick the block, Edit, pick LABEL, then property "Multiline", Yes/No.
+#
+# Before the fix: the multiline param is ignored (the definition stays single-line).
+# After the fix: the definition switches to/from multiline.
+#
+# The engine test battman_switches_an_attribute_to_and_from_multiline drives this.

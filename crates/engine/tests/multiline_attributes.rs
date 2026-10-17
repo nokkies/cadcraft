@@ -86,6 +86,38 @@ fn references_get_the_multiline_text_and_carry_it() {
 }
 
 #[test]
+fn battman_switches_an_attribute_to_and_from_multiline() {
+    // A block with a single-line attribute definition LABEL ("Site").
+    let mut s = Session::new();
+    s.execute("attdef", &json!({ "tag": "LABEL", "at": [2, 2], "default": "Site", "height": 2.0 })).unwrap();
+    let hs: Vec<String> = s.doc().unwrap().model.iter().map(|e| e.handle.hex()).collect();
+    s.execute("block", &json!({ "name": "TAG", "base": [0, 0], "handles": hs, "keep": "delete" })).unwrap();
+    let def_of = |s: &Session| -> Attrib {
+        let b = s.doc().unwrap().block("TAG").unwrap();
+        match &b.entities.iter().find(|e| matches!(e.kind, EntityKind::AttDef(_))).unwrap().kind {
+            EntityKind::AttDef(a) => a.clone(),
+            _ => unreachable!(),
+        }
+    };
+    assert!(def_of(&s).multiline.is_none(), "starts single-line");
+    // Switch it to multiline: its current text becomes the multiline contents.
+    s.execute("battman", &json!({ "name": "TAG", "action": "edit", "tag": "LABEL", "multiline": true })).unwrap();
+    let a = def_of(&s);
+    let m = a.multiline.clone().expect("now multiline");
+    assert_eq!(m.read_as, "Site");
+    assert_eq!(m.mtext.contents, "Site");
+    assert!((m.mtext.height - 2.0).abs() < 1e-9, "the multiline text takes the attribute's height");
+    // A new reference carries the multiline text.
+    let r = s.execute("insert", &json!({ "name": "TAG", "at": [10, 5] })).unwrap();
+    let h = Handle::parse_hex(r["handle"].as_str().unwrap()).unwrap();
+    let ra = label(&s, h);
+    assert_eq!(ra.multiline_text().map(|m| m.contents), Some("Site".to_string()));
+    // Switch it back to single-line: the multiline text is dropped.
+    s.execute("battman", &json!({ "name": "TAG", "action": "edit", "tag": "LABEL", "multiline": false })).unwrap();
+    assert!(def_of(&s).multiline.is_none(), "back to single-line");
+}
+
+#[test]
 fn a_value_given_on_insert_replaces_the_definition_text() {
     let mut s = session();
     let r = s.execute("insert", &json!({ "name": "TAG", "at": [0, 0], "attribs": { "LABEL": "NORTH" } })).unwrap();

@@ -16,7 +16,7 @@ pub(super) fn battman_spec() -> CommandSpec {
     CommandSpec::new("battman", "Block Attribute Manager...", run)
         .menu(&["Modify", "Object", "Attribute", "Block Attribute Manager..."])
         .params(
-            "{name, action?: \"list\" (default) | \"edit\" | \"remove\" | \"up\" | \"down\" | \"order\" | \"sync\", tag? (the definition to edit, remove or move; any case), newTag?, prompt?, default?, invisible?, constant?, height?, layer?, order?: [every tag, in the new order], sync?: bool (default true: existing references follow, as with ATTSYNC)} → {block, attributes: [{tag, prompt, default, invisible, constant, height, layer}], references, synced?}",
+            "{name, action?: \"list\" (default) | \"edit\" | \"remove\" | \"up\" | \"down\" | \"order\" | \"sync\", tag? (the definition to edit, remove or move; any case), newTag?, prompt?, default?, invisible?, constant?, height?, layer?, multiline?: bool (make the attribute multiline, or single-line again), order?: [every tag, in the new order], sync?: bool (default true: existing references follow, as with ATTSYNC)} → {block, attributes: [{tag, prompt, default, invisible, constant, height, layer}], references, synced?}",
         )
         .interactive(|s| Ok(Box::new(BattmanM::new(s))))
 }
@@ -31,6 +31,9 @@ struct Change {
     constant: Option<bool>,
     height: Option<f64>,
     layer: Option<String>,
+    /// Some(true): make the attribute multiline (its text becomes the multiline contents);
+    /// Some(false): make it single-line again (drop the multiline text); None: leave it.
+    multiline: Option<bool>,
 }
 
 /// The attribute definitions of `b` in order: handle, definition, layer.
@@ -133,6 +136,27 @@ fn edit(s: &mut Session, name: &str, tag: &str, c: &Change) -> Result<String> {
                 if let Some(v) = c.height {
                     a.text.height = v;
                 }
+                match c.multiline {
+                    Some(true) if a.multiline.is_none() => {
+                        // The attribute's own text becomes the multiline text.
+                        let t = &a.text;
+                        let mtext = cadcraft_doc::MText {
+                            insert: t.insert,
+                            height: t.height,
+                            width: 0.0,
+                            attach: 8,
+                            rotation: t.rotation,
+                            style: t.style.clone(),
+                            contents: cadcraft_doc::mtext_literal(&t.value),
+                            line_spacing: 1.0,
+                            line_spacing_exact: false,
+                            columns: None,
+                        };
+                        a.multiline = Some(cadcraft_doc::MultilineAttrib { mtext, read_as: t.value.clone() });
+                    }
+                    Some(false) => a.multiline = None,
+                    _ => {}
+                }
                 result = a.tag.clone();
             }
         });
@@ -230,6 +254,7 @@ fn run(s: &mut Session, p: &Value) -> Result<Value> {
                 constant: opt_bool("constant"),
                 height,
                 layer: opt_str("layer"),
+                multiline: opt_bool("multiline"),
             };
             let old = tag()?;
             let new = edit(s, &name, &old, &c)?;
@@ -281,6 +306,7 @@ enum Prop {
     Constant,
     Height,
     Layer,
+    Multiline,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -302,7 +328,7 @@ struct BattmanM {
 }
 
 const OPTIONS: &[&str] = &["Edit", "Remove", "moveUp", "moveDown", "Sync", "List", "eXit"];
-const PROPS: &[&str] = &["Tag", "Prompt", "Default", "Invisible", "Constant", "Height", "Layer", "eXit"];
+const PROPS: &[&str] = &["Tag", "Prompt", "Default", "Invisible", "Constant", "Height", "Layer", "Multiline", "eXit"];
 
 impl BattmanM {
     fn new(s: &Session) -> Self {
@@ -411,6 +437,9 @@ impl Interactive for BattmanM {
                     Prop::Constant => Prompt::new("Constant?", KW).kw(&["Yes", "No"]).default(yes_no(a.as_ref().is_some_and(|a| a.constant))),
                     Prop::Height => Prompt::new("Specify text height", Accept::NUMBER).default(num(a.as_ref().map_or(0.0, |a| a.text.height))),
                     Prop::Layer => Prompt::new("Enter layer name", Accept::TEXT).default(self.current_layer(s)),
+                    Prop::Multiline => {
+                        Prompt::new("Multiline?", KW).kw(&["Yes", "No"]).default(yes_no(a.as_ref().is_some_and(|a| a.multiline.is_some())))
+                    }
                 }
             }
         }
@@ -486,6 +515,7 @@ impl Interactive for BattmanM {
                         "Constant" => Stage::Value(Prop::Constant),
                         "Height" => Stage::Value(Prop::Height),
                         "Layer" => Stage::Value(Prop::Layer),
+                        "Multiline" => Stage::Value(Prop::Multiline),
                         _ => Stage::Option,
                     }
                 }
@@ -516,6 +546,9 @@ impl Interactive for BattmanM {
                         Change { height: Some(h), ..Change::default() }
                     }
                     Prop::Layer => Change { layer: Some(text), ..Change::default() },
+                    Prop::Multiline => {
+                        Change { multiline: Some(yes(&i).ok_or_else(|| EngineError::Other("Enter Yes or No.".into()))?), ..Change::default() }
+                    }
                 };
                 self.change(s, c)?;
                 self.stage = Stage::Prop;
