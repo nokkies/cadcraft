@@ -128,16 +128,53 @@ if ($tbLayout) {
     }
 }
 
+# --- the template's own title block (paper space) ------------------------------------
+# The generator runs its script against the template, so the output already carries the
+# template's border and title block in its paper-space layout. Card M4-F1: do NOT insert a
+# second A1 BORDER / A1 TITLE TEXT into model space (that was the empty-plot defect). Instead
+# set the attribute values on the template's EXISTING title-block reference, then switch back
+# to model space before drawing content. Discover the layout name and the A1 TITLE TEXT handle
+# from the template (handles differ per file, so read them, never hard-code).
+$tplLayout = ''
+$tplTbHandle = ''
+$tll = Invoke-CliSteps -Cli $cli -Drawing $Template -Steps @('layout.list {}')
+if ($null -ne $tll) {
+    $tlay = @($tll | ForEach-Object { [string]$_.name } | Where-Object { $_ -and $_ -ne 'Model' })
+    if ($tlay.Count -gt 0) { $tplLayout = $tlay[0] }
+}
+if ($tplLayout) {
+    $tins = Invoke-CliSteps -Cli $cli -Drawing $Template -Steps @(
+        ('layout.set {"name":' + (ConvertTo-JsonStringValue -Value $tplLayout) + '}'),
+        'entities {"type":"Insert","limit":100}'
+    )
+    if ($null -ne $tins) {
+        foreach ($e in $tins.entities) {
+            if ([string]$e.geometry.block -eq 'A1 TITLE TEXT') { $tplTbHandle = [string]$e.handle; break }
+        }
+    }
+}
+
 # --- model-space geometry ----------------------------------------------------------
 $ents = Invoke-CliSteps -Cli $cli -Drawing $SchematicDrawing -Steps @('entities {"limit":5000}')
 if ($null -eq $ents) { throw 'could not read the SCD model entities' }
 
 $lines = New-Object System.Collections.Generic.List[string]
+# M4-F1: set the title block's attributes on the template's existing paper-space reference
+# (found above), not by inserting a new one into model space. Switch to the layout, attedit,
+# then return to model space for the drawing content. If the template's title block could not
+# be located, fall back to the old model-space insert so the sheet still carries a title block.
 $attribJson = ($tbAttribs.Keys | Sort-Object | ForEach-Object {
     (ConvertTo-JsonStringValue -Value $_) + ':' + (ConvertTo-JsonStringValue -Value $tbAttribs[$_])
 }) -join ','
-$lines.Add('insert {"name":"A1 TITLE TEXT","at":[0,0],"attribs":{' + $attribJson + '}}')
-$lines.Add('insert {"name":"A1 BORDER","at":[0,0]}')
+if ($tplLayout -and $tplTbHandle) {
+    $lines.Add('layout.set {"name":' + (ConvertTo-JsonStringValue -Value $tplLayout) + '}')
+    $lines.Add('attedit {"handle":' + (ConvertTo-JsonStringValue -Value $tplTbHandle) + ',"values":{' + $attribJson + '}}')
+    $lines.Add('layout.set {"name":"Model"}')
+} else {
+    Write-Warning 'template title block not found; falling back to a model-space insert'
+    $lines.Add('insert {"name":"A1 TITLE TEXT","at":[0,0],"attribs":{' + $attribJson + '}}')
+    $lines.Add('insert {"name":"A1 BORDER","at":[0,0]}')
+}
 $lines.Add('mtext {"at":[768,72],"text":"PRELIMINARY","height":4,"style":"Romans","layer":"Preliminary Not For Construction"}')
 $lines.Add('mtext {"at":[753,66],"text":"NOT FOR CONSTRUCTION","height":4,"style":"Romans","layer":"Preliminary Not For Construction"}')
 

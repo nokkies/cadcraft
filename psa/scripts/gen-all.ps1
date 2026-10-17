@@ -92,6 +92,13 @@ foreach ($chk in @('ga-dimensions.ps1','rail-lengths.ps1','check-d4.ps1')) {
     else { Write-Host ("[{0}] PASS  {1}" -f $chk, $lastLine) }
 }
 
+# M4-F1: the title block lives in paper space only (no model-space duplicate). Structural check;
+# the plot is the check and comes at M4-F5.
+$f1 = (& pwsh -NoProfile -File (Join-Path $s 'check-f1.ps1') 2>&1 | Out-String)
+$f1Last = (($f1 -split "`r?`n" | Where-Object { $_ -match '\S' } | Select-Object -Last 1))
+if ($LASTEXITCODE -ne 0) { Write-Host "[check-f1] FAIL  $f1Last"; $fail = 1 }
+else { Write-Host "[check-f1] PASS  $f1Last" }
+
 if ($fail -eq 0) {
     Write-Host 'PASS M4 pipeline (all twelve sheets generated; every check green; SCD-002 TX1 is the known D8 question)'
     exit 0

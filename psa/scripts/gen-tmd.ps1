@@ -99,6 +99,30 @@ if ($tbLayout) {
     }
 }
 
+# --- the template's own title block (paper space) ------------------------------------
+# M4-F1: the generator runs against the template, which already carries the border and title
+# block in its paper-space layout. Set the attribute values on that existing reference instead
+# of inserting a second one into model space. Read the layout name and A1 TITLE TEXT handle from
+# the template (handles differ per file).
+$tplLayout = ''
+$tplTbHandle = ''
+$tll = Invoke-CliSteps -Cli $cli -Drawing $Template -Steps @('layout.list {}')
+if ($null -ne $tll) {
+    $tlay = @($tll | ForEach-Object { [string]$_.name } | Where-Object { $_ -and $_ -ne 'Model' })
+    if ($tlay.Count -gt 0) { $tplLayout = $tlay[0] }
+}
+if ($tplLayout) {
+    $tins = Invoke-CliSteps -Cli $cli -Drawing $Template -Steps @(
+        ('layout.set {"name":' + (ConvertTo-JsonStringValue -Value $tplLayout) + '}'),
+        'entities {"type":"Insert","limit":100}'
+    )
+    if ($null -ne $tins) {
+        foreach ($e in $tins.entities) {
+            if ([string]$e.geometry.block -eq 'A1 TITLE TEXT') { $tplTbHandle = [string]$e.handle; break }
+        }
+    }
+}
+
 # --- model-space geometry (faithful rebuild) --------------------------------------
 # Like gen-scd.ps1, carry every line and text across so the generated sheet matches the working
 # drawing. A TMD is a drawn table (lines + text), not graphical terminal symbols, so there is no
@@ -111,8 +135,15 @@ $lines = New-Object System.Collections.Generic.List[string]
 $attribJson = ($tbAttribs.Keys | Sort-Object | ForEach-Object {
     (ConvertTo-JsonStringValue -Value $_) + ':' + (ConvertTo-JsonStringValue -Value $tbAttribs[$_])
 }) -join ','
-$lines.Add('insert {"name":"A1 TITLE TEXT","at":[0,0],"attribs":{' + $attribJson + '}}')
-$lines.Add('insert {"name":"A1 BORDER","at":[0,0]}')
+if ($tplLayout -and $tplTbHandle) {
+    $lines.Add('layout.set {"name":' + (ConvertTo-JsonStringValue -Value $tplLayout) + '}')
+    $lines.Add('attedit {"handle":' + (ConvertTo-JsonStringValue -Value $tplTbHandle) + ',"values":{' + $attribJson + '}}')
+    $lines.Add('layout.set {"name":"Model"}')
+} else {
+    Write-Warning 'template title block not found; falling back to a model-space insert'
+    $lines.Add('insert {"name":"A1 TITLE TEXT","at":[0,0],"attribs":{' + $attribJson + '}}')
+    $lines.Add('insert {"name":"A1 BORDER","at":[0,0]}')
+}
 $lines.Add('mtext {"at":[768,72],"text":"PRELIMINARY","height":4,"style":"Romans","layer":"Preliminary Not For Construction"}')
 $lines.Add('mtext {"at":[753,66],"text":"NOT FOR CONSTRUCTION","height":4,"style":"Romans","layer":"Preliminary Not For Construction"}')
 
