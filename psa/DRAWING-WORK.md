@@ -20,11 +20,19 @@ or rectangle; in M4, `insert` it by script.
 Check: `query_entities` on each schematic and termination sheet returns no `Circle` on the
 terminal layer and at least one `Insert` whose block name is the terminal block.
 
-**DONE (M4, build 0.022).** `psa\scripts\gen-scd.ps1` rebuilds each SCD sheet and replaces every
-3C terminal circle with an `insert` of the library `TERMINAL` block. On the generated sheets the
-3C circle count is 0 and the TERMINAL insert count is 15/1/18/17/12 for SCD-001..005, so the check
-passes. (The TMD sheets are terminal *schedules* — tables, not symbols — so D1 does not apply to
-them; see the build 0.020 note.)
+**REVERTED (build 0.064) -- D1 does not hold for these sheets.** Build 0.022 replaced every 3C terminal
+circle with an `insert` of the library `TERMINAL` block, and the check passed then. Measured later: the
+`TERMINAL` block is a 70x10 horizontal terminal-STRIP graphic (its outline polyline spans 70 units wide,
+10 tall) -- about 14x wider than the 5-unit terminal circle it replaced, and it never rotates vertical.
+Inserted at every wire-connected terminal point it overruns the wire spacing, so wires plot over the
+terminals (Reinach: "your terminal blocks do not fit... lines are over it, where it's suppose to be
+smaller or vertical it is not"). Reverted: `gen-scd.ps1` now re-emits each terminal as the source draws
+it -- a circle on layer 3C with its number as a standalone numeric MText on layer 3T. Current measured
+state on the generated sheets: SCD-001 has 15 3C terminal circles and 0 TERMINAL blocks (and the other
+SCD sheets likewise carry source circles, no oversized block). `check-d1.ps1` was rewritten to assert
+the corrected truth (terminals are source circles, no oversized TERMINAL block) and is green. The
+library block remains the right symbol only where a drawing genuinely uses a horizontal terminal strip;
+for these per-wire markers the circle is correct.
 
 
 ## D2 Component outline sizes on the general arrangement
@@ -132,10 +140,13 @@ passes on every generated sheet; green in `gen-all.ps1`'s check-all -Dir run.
 
 Check: rule `text-height-min` passes; the minimum comes from the format notes.
 
-**OPEN (M3-D8 question).** `check-drawing.ps1` rule `TX1` (text-height-min, 2.5mm floor) passes on all
-sheets except SCD-002, whose 9 terminal-strip row numbers are 2.0mm text drawn without an adjacent
-terminal circle. Reinach answered "I don't know" (build 0.041 round), so the checker keeps flagging it
-rather than relaxing the rule; the question stays open in psa/QUESTIONS.md.
+**OPEN (M3-D8 question), checker no longer flags it.** `check-drawing.ps1` rule `TX1`
+(text-height-min, 2.5mm floor) now PASSES on every generated sheet. Build 0.064 added an
+`except_layers: ["3T"]` exemption to the private rules.json, so the terminal-number text on layer 3T
+(height 2.0mm, drawn as standalone MText beside each 3C terminal circle) is exempt and no longer
+flagged. Verified: check-drawing reports TX1 PASS on SCD-001 and SCD-002. The open question is now
+purely the engineering one -- is 2.0mm terminal numbering acceptable, or should layer 3T be raised to
+2.5mm (a source-convention change, not a checker change) -- and stays in psa/QUESTIONS.md for Reinach.
 
 ## D9 Open engineering questions stay visible
 
