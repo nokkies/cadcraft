@@ -418,6 +418,18 @@ pub(crate) fn is_paper_view(tags: &[Tag]) -> bool {
     xdata(tags, APP).iter().find(|t| t.code == 1000).is_some_and(|t| t.str().trim().eq_ignore_ascii_case(PAPER_VIEW))
 }
 
+/// Marker on a viewport that was already in the drawing and is the paper-space window (id 1).
+/// [`PAPER_VIEW`] marks a viewport the *writer* added, which the reader drops as implicit; this one
+/// marks a viewport that must be kept, and its presence means "this is id 1". It exists because DWG
+/// stores no viewport id, so the bridge renumbers viewports by record order and a second sheet window
+/// would otherwise return as id 2 or 3 and be drawn as a model window (ghosting).
+pub(crate) const SHEET_VIEW: &str = "SHEETVIEW";
+
+/// True for a VIEWPORT record whose CADCraft xdata starts with the [`SHEET_VIEW`] marker.
+pub(crate) fn is_sheet_view(tags: &[Tag]) -> bool {
+    xdata(tags, APP).iter().find(|t| t.code == 1000).is_some_and(|t| t.str().trim().eq_ignore_ascii_case(SHEET_VIEW))
+}
+
 /// Snap kinds in CADCraft's ASSOC xdata.
 fn snap_code(s: &AssocSnap) -> i64 {
     match s {
