@@ -467,7 +467,10 @@ if ($name -match 'GAD-001') {
         # (190,192) all within reach). The upper-right column below the NOTES block (x~1360, y<960)
         # is empty (measured: 0 entities in x>1300, 650<y<960), so drop the note there.
         Emit-Layer '1T'
-        $lines.Add('mtext {"at":[1360,720],"text":' + (ConvertTo-JsonStringValue $noteText) + ',"height":3,"layer":"1T"}')
+        # M4-G3 (build 0.128): the note matches the GA NOTES block it sits under -- same height (8) and
+        # same text style (isocp2), measured on the source's own NOTES MText. At height 3 it was unreadable
+        # on the plotted sheet.
+        $lines.Add('mtext {"at":[1360,720],"text":' + (ConvertTo-JsonStringValue $noteText) + ',"height":8,"style":"isocp2","layer":"1T"}')
     }
 }
 
