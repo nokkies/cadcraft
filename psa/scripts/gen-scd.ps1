@@ -436,23 +436,28 @@ if ($name -match 'GAD-001') {
 # generated sheet plotted with border + title block but no content. viewHeight sets the vertical
 # extent; the horizontal follows the window's aspect, so fit the larger of content height and
 # (content width / aspect), with a margin. The viewport is unlocked first so the view can change.
-# M4-C17 (restored by build 0.108): erase the extra model windows -- the duplicate sheet viewport and the
-# empty detail window -- so only the content window remains.
+# M4-C17 (build 0.110): the extra viewports are NOT erased.
 #
-# Build 0.105 fixed one real defect: cadcraft's saveas renumbered viewport ids and promoted the second
-# sheet window into the model list, drawing the content two or three times. That fix stands.
+# This erase has had three lives and the history is worth keeping, because each time it was removed for a
+# partly-right reason and put back for a partly-right reason.
 #
-# Builds 0.106/0.107 concluded from that that the erase was no longer needed. It is, for a SECOND and
-# independent reason that the erase had been masking: the template's detail window 41D5 is inherited
-# verbatim and is aimed at model coordinates with nothing to do with our drawing (viewCenter 875,1629,
-# viewHeight 3188, i.e. model x -1225..2976 y 35..3223), while our generated content spans x -85..1360
-# y -55..1085 -- 202 of 218 positioned entities fall inside it. So the inset renders the entire main
-# drawing at 1/20 scale, which is the "looks duplicated" report from build 0.065. Measured: the
-# regenerated plot carries about twice the source's ink almost everywhere (grid row5 col2 3081 vs 4850,
-# row5 col3 812 vs 2405).
+# 1. Added because cadcraft's saveas renumbered viewport ids and promoted the second sheet window into the
+#    model list, drawing the content two or three times. Build 0.105 fixed that properly, in cadcraft: the
+#    sheet role is carried in CADCraft xdata across a DWG save.
+# 2. Removed at 0.106/0.107 on the strength of 0.105 alone. Wrong, but for a different reason than first
+#    thought -- see 3.
+# 3. Restored at 0.108 on the belief that the detail window echoed the whole drawing. Also wrong: measured
+#    against the working drawings, their own detail windows carry 54-96% of their sheet's ink. A reduced
+#    overall view in a small window IS what the templates do.
 #
-# The right end state is to keep the window and AIM it at a real detail region of our own content, the way
-# the source does. Until a generator chooses that region deliberately, the window has to go.
+# Removed again here because build 0.110 measured what the erase actually costs. Taking a SOURCE sheet and
+# erasing only 41D5 through cadcraft -- identical content, identical commands, one entity deleted -- drops
+# the plotted ink from 11,376 to 6,887 on SCD-003 and from 15,300 to 8,817 on SCD-001. The erase deletes a
+# DISPLAYED viewport (all four source viewports have on=True) that shows a third of the sheet. That single
+# deletion is also the whole of the "generated sheets plot at 0.6 of the source" gap.
+#
+# check-detail (M4-C21) is the guard: it compares each sheet's detail region against its source's, so
+# putting the window back has to be measured, not assumed, in either direction.
 if ($tplLayout) {
     $lines.Add('layout.set {"name":' + (ConvertTo-JsonStringValue -Value $tplLayout) + '}')
 }
@@ -466,10 +471,6 @@ $lines.Add('style {"name":"Romans"}')
 $lines.Add('text {"at":[768,72],"text":"PRELIMINARY","height":4}')
 $lines.Add('text {"at":[753,66],"text":"NOT FOR CONSTRUCTION","height":4}')
 
-if ($tplExtraVpHandles.Count -gt 0) {
-    $hjson = ($tplExtraVpHandles | ForEach-Object { ConvertTo-JsonStringValue -Value $_ }) -join ','
-    $lines.Add('erase {"handles":[' + $hjson + ']}')
-}
 if ($tplVpHandle -and $hasExtents) {
     $cx = ($minX + $maxX) / 2.0
     $cy = ($minY + $maxY) / 2.0

@@ -316,15 +316,10 @@ $lines.Add('style {"name":"Romans"}')
 $lines.Add('text {"at":[768,72],"text":"PRELIMINARY","height":4}')
 $lines.Add('text {"at":[753,66],"text":"NOT FOR CONSTRUCTION","height":4}')
 
-# M4-C17 (restored by build 0.108): the extra viewports are erased. Build 0.105 fixed the id-renumbering
-# defect, but the template's detail window is aimed at model coordinates our content happens to overlap
-# (202 of 218 positioned entities fall inside its view rect), so keeping it renders the whole main drawing
-# at 1/20 scale inside the inset. See the full note in gen-scd.ps1. Keep the window only once a generator
-# aims it at a real detail region.
-if ($tplExtraVpHandles.Count -gt 0) {
-    $hjson = ($tplExtraVpHandles | ForEach-Object { ConvertTo-JsonStringValue -Value $_ }) -join ','
-    $lines.Add('erase {"handles":[' + $hjson + ']}')
-}
+# M4-C17 (build 0.110): the extra viewports are NOT erased. Erasing 41D5 deletes a DISPLAYED viewport that
+# shows a third of the sheet: measured on a source sheet with only that entity removed, plotted ink falls
+# from 11,376 to 6,887. That single deletion is also the whole "generated plots at 0.6 of the source" gap.
+# Full history and the measurement in gen-scd.ps1; check-detail (M4-C21) guards it.
 if ($tplVpHandle -and $hasExtents) {
     $cx = ($minX + $maxX) / 2.0
     $cy = ($minY + $maxY) / 2.0

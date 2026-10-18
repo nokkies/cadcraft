@@ -239,6 +239,46 @@ Both sheets plot at roughly 0.6 of the source's total ink, which is a separate s
 generated plot carries about 60% of the reference's stroke count at all -- and it is the obvious next thing
 to chase, since it applies to all twelve.
 
+## Answered (build 0.110): the 0.6 is the erase, and the two "gaps" were the erase too
+
+The standing question above is closed, and the answer also corrects the section before it. The SCD-003 and
+SCD-004 "local shortfalls" were **the erase**, not a generation bug -- and the whole-sheet 0.6 ratio is the
+same thing.
+
+Proven with a clean isolation rather than an argument. Take the SOURCE sheet, run it through cadcraft with
+one command -- `erase {"handles":["41D5"]}` -- and save. Now two files exist whose content, layers, blocks,
+text and viewport frames are identical by construction; the only difference is whether the detail window is
+there. Plot both and measure the same paper rectangle:
+
+| sheet | source as-is | source minus 41D5 |
+|---|---|---|
+| SCD-003 | share 0.527, total 11,376 | **share 0.221, total 6,887** |
+| SCD-001 | share 0.713, total 15,300 | **share 0.502, total 8,817** |
+
+SCD-003's share falls 0.527 -> 0.221, which brackets the 0.325 measured on the generated sheet; SCD-001's
+falls 0.713 -> 0.502, bracketing its generated 0.581. And the totals: erasing one viewport removes 39% of
+SCD-003's plotted ink and 42% of SCD-001's -- which is where the "generated plots at 0.6 of the source"
+went. It is not that the generator draws less. It is that the generator deletes a window that displays a
+third of the sheet.
+
+So the erase is doing something worse than the defect it was written to avoid. It was added because a second
+model window made the content appear two or three times; build 0.105 fixed that properly; and the window the
+erase then removes is a **displayed** viewport (all four viewports on the source sheets have `on=True`)
+showing a reduced overall view. Keeping it is right, and check-detail as rewritten in 0.109 is the guard
+that says so.
+
+Two things worth keeping from the investigation, because both were wrong before being measured:
+
+* **The grid used to localise this was itself miscalculated.** It divided the page into square cells while
+  the page is 420x297mm, so the reported coordinates were wrong and the column it flagged was flagged for a
+  reason that did not hold. Scaling each axis by its own extent fixed it. A measurement that looks precise
+  because it is a grid is not exempt from getting the geometry right.
+* **The ink-share metric is weak evidence about a picture.** The detail window's share was measured at 54%
+  while a look at the plot shows that region as mostly white space with a small schematic in one corner.
+  Intersecting a path's bounding box with a rectangle counts a long stroke that merely crosses the region as
+  belonging to it. The structural test -- is the window there or not -- is the one that holds up here.
+
+
 
 
 
