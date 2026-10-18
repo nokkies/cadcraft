@@ -76,6 +76,29 @@ def polys(path):
     return out
 
 
+def filled(path):
+    """Filled <path> geometry. cadcraft emits TrueType glyph outlines as <path fill=... d=...>,
+    not as <polyline stroke=... points=...>, so a polyline-only parse silently skips every filled
+    shape -- on the sheet with the balloon tags that is 37 glyph outlines, the most-detailed text on
+    the drawing. Coordinates come from the d= attribute; SVG geometry is NOT in d= for polylines,
+    which is why the two need separate readers."""
+    text = open(path, encoding='utf-8', errors='replace').read()
+    out = []
+    for m in re.finditer(r'<path\b[^>]*>', text):
+        tag = m.group(0)
+        fill = re.search(r'fill="([^"]+)"', tag)
+        d = re.search(r'\bd="([^"]+)"', tag)
+        if not d:
+            continue
+        nums = re.findall(r'-?\d+\.?\d*', d.group(1))
+        coords = tuple(zip(nums[0::2], nums[1::2]))
+        coords = tuple((float(x), float(y)) for x, y in coords)
+        if not coords:
+            continue
+        out.append((fill.group(1) if fill else '?', coords))
+    return out
+
+
 def span(coords):
     if not coords:
         return 0.0
@@ -124,10 +147,64 @@ print('polylines: src=%d gen=%d | stroke widths src=%s gen=%s' % (len(src), len(
 print('colour counts: src=%s gen=%s' % (dict(sorted(ca.items())), dict(sorted(ga.items()))))
 missing_cols = {c: ca[c] - ga.get(c, 0) for c in ca if ca[c] > ga.get(c, 0)}
 print('colours with FEWER strokes in generated: %s' % (missing_cols or 'none'))
-print('unmatched src strokes: %d | span >= %.1f: %d | of those, shape absent from generated (real loss): %d'
-      % (len(only_a), glyph_span, len(big), len(lost)))
-for c, p in lost[:5]:
-    print('   LOST colour=%s span=%.1f npoints=%d' % (c, span(p), len(p)))
+# Filled <path> geometry (TrueType glyph outlines). A polyline-only parse skips these entirely.
+# The comparison must be SCALE-AWARE. These glyphs sit inside block references, and a reference's
+# scale multiplies its text: the balloon tags are inserted at scale 6.0, so their outlines come out
+# at exactly 6x the source's per-glyph size while being the same glyph. Comparing raw coordinates
+# calls that "lost geometry", which is wrong. Two shapes are the same shape when one is a uniform
+# rescale of the other -- so compare the vertex count and the ASPECT RATIO, and separately check the
+# size ratio is uniform across the sheet (a per-glyph size change would be a real defect).
+fa = filled(src_path)
+fb = filled(gen_path)
+
+
+def aspect(p):
+    xs = [x for x, y in p]
+    ys = [y for x, y in p]
+    w = max(xs) - min(xs)
+    h = max(ys) - min(ys)
+    if h <= 0:
+        return (len(p), 0.0)
+    return (len(p), round(w / h, 3))
+
+
+set_fa = set((c, p) for c, p in fa)
+set_fb = set((c, p) for c, p in fb)
+only_fa = [(c, p) for c, p in fa if (c, p) not in set_fb]
+gen_fshapes = collections.Counter((c, shape(p)) for c, p in fb)
+exact_f = [(c, p) for c, p in only_fa if gen_fshapes.get((c, shape(p)), 0) == 0]
+
+# Anything not an exact shape match is re-checked ignoring uniform scale.
+gen_aspects = collections.Counter((c, aspect(p)) for c, p in fb)
+lost_f = [(c, p) for c, p in exact_f if gen_aspects.get((c, aspect(p)), 0) == 0]
+
+# Size ratio across matched shapes: must be one uniform number, i.e. a block scale, not drift.
+ratios = []
+src_by_aspect = collections.defaultdict(list)
+for c, p in fa:
+    src_by_aspect[(c, aspect(p))].append(max(x for x, y in p) - min(x for x, y in p))
+gen_by_aspect = collections.defaultdict(list)
+for c, p in fb:
+    gen_by_aspect[(c, aspect(p))].append(max(x for x, y in p) - min(x for x, y in p))
+for k in src_by_aspect:
+    if k in gen_by_aspect and src_by_aspect[k] and gen_by_aspect[k]:
+        sa = sorted(src_by_aspect[k]); ga = sorted(gen_by_aspect[k])
+        if len(sa) == len(ga):
+            for i in range(len(sa)):
+                if sa[i] > 0:
+                    ratios.append(round(ga[i] / sa[i], 2))
+rc = collections.Counter(ratios)
+
+fill_a = collections.Counter(c for c, p in fa)
+fill_b = collections.Counter(c for c, p in fb)
+missing_fill = {c: fill_a[c] - fill_b.get(c, 0) for c in fill_a if fill_a[c] > fill_b.get(c, 0)}
+print('filled paths: src=%d gen=%d | fills src=%s gen=%s' % (len(fa), len(fb), dict(sorted(fill_a.items())), dict(sorted(fill_b.items()))))
+print('filled: unmatched src=%d | exact-shape loss=%d | scale-aware loss=%d | fills with fewer: %s'
+      % (len(only_fa), len(exact_f), len(lost_f), missing_fill or 'none'))
+if rc:
+    print('filled size ratio gen/src (uniform = a block scale): %s' % rc.most_common(4))
+for c, p in lost_f[:5]:
+    print('   LOST FILL colour=%s span=%.1f npoints=%d' % (c, span(p), len(p)))
 
 if lost:
     print('FAIL colour/stroke audit: %d non-glyph stroke(s) absent from the generated sheet' % len(lost))
@@ -135,7 +212,13 @@ if lost:
 if missing_cols:
     print('FAIL colour/stroke audit: generated sheet is missing strokes in %s' % sorted(missing_cols))
     sys.exit(1)
-print('PASS colour/stroke audit (no non-glyph stroke lost; every colour at least as present as source)')
+if lost_f:
+    print('FAIL colour/stroke audit: %d filled shape(s) absent from the generated sheet (not explained by a uniform scale)' % len(lost_f))
+    sys.exit(1)
+if missing_fill:
+    print('FAIL colour/stroke audit: generated sheet has fewer filled shapes in %s' % sorted(missing_fill))
+    sys.exit(1)
+print('PASS colour/stroke audit (no non-glyph stroke or filled shape lost; every colour at least as present as source)')
 sys.exit(0)
 '@ -replace "`r", ''
 
