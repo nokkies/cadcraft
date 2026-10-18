@@ -156,9 +156,53 @@ if ($tplLayout) {
     }
 }
 
+# M4-C16: the template's content viewport handle (the model-space window with the largest paper
+# window; id>=2, since id<=1 is the sheet-border viewport). Read it, never hard-code.
+$tplVpHandle = ''
+$tplVpArea = -1.0
+if ($tplLayout) {
+    $tvps = Invoke-CliSteps -Cli $cli -Drawing $Template -Steps @(
+        ('layout.set {"name":' + (ConvertTo-JsonStringValue -Value $tplLayout) + '}'),
+        'entities {"type":"Viewport","limit":100}'
+    )
+    if ($null -ne $tvps) {
+        foreach ($e in $tvps.entities) {
+            $g = $e.geometry
+            $vid = -1
+            if ($g.PSObject.Properties.Name -contains 'id') { $vid = [int]$g.id }
+            if ($vid -ge 2) {
+                $w = 0.0; $h = 0.0
+                if ($g.PSObject.Properties.Name -contains 'width') { $w = [double]$g.width }
+                if ($g.PSObject.Properties.Name -contains 'height') { $h = [double]$g.height }
+                $area = $w * $h
+                if ($area -gt $tplVpArea) { $tplVpArea = $area; $tplVpHandle = [string]$e.handle }
+            }
+        }
+    }
+}
+
 # --- model-space geometry ----------------------------------------------------------
 $ents = Invoke-CliSteps -Cli $cli -Drawing $SchematicDrawing -Steps @('entities {"limit":5000}')
 if ($null -eq $ents) { throw 'could not read the SCD model entities' }
+
+# M4-C16: the bounding box of the content we are about to draw, so the content viewport can be
+# framed on it. The template's content viewport (handle 30F5, the largest paper-space window) was
+# authored over an EMPTY template model space -- its stored view (measured: viewCenter (-350,571),
+# viewHeight 524) points at empty space, so a generated sheet plotted with the border and title
+# block (paper space) but NO content (the content viewport looked where the content is not). The
+# source working drawing has the same viewport pointed correctly (measured: (780,520) vh 1572).
+# Fix: compute the drawn content's extents and, after drawing, set the content viewport's view on
+# them. Track every coordinate the source entities carry (line ends, circle centres, insert points).
+$minX = [double]::MaxValue; $minY = [double]::MaxValue; $maxX = [double]::MinValue; $maxY = [double]::MinValue
+function Track-XY { param($x, $y) if ($null -ne $x -and $null -ne $y) { $x = [double]$x; $y = [double]$y; if ($x -lt $script:minX) { $script:minX = $x }; if ($x -gt $script:maxX) { $script:maxX = $x }; if ($y -lt $script:minY) { $script:minY = $y }; if ($y -gt $script:maxY) { $script:maxY = $y } } }
+foreach ($e in $ents.entities) {
+    $g = $e.geometry
+    if ($g.PSObject.Properties.Name -contains 'start' -and $g.start) { Track-XY $g.start.x $g.start.y }
+    if ($g.PSObject.Properties.Name -contains 'end' -and $g.end) { Track-XY $g.end.x $g.end.y }
+    if ($g.PSObject.Properties.Name -contains 'center' -and $g.center) { Track-XY $g.center.x $g.center.y }
+    if ($g.PSObject.Properties.Name -contains 'insert' -and $g.insert) { Track-XY $g.insert.x $g.insert.y }
+}
+$hasExtents = ($minX -lt $maxX -and $minY -lt $maxY)
 
 $lines = New-Object System.Collections.Generic.List[string]
 # M4-F1: set the title block's attributes on the template's existing paper-space reference
@@ -339,6 +383,23 @@ if ($name -match 'GAD-001') {
         Emit-Layer '1T'
         $lines.Add('mtext {"at":[40,120],"text":' + (ConvertTo-JsonStringValue $noteText) + ',"height":3,"layer":"1T"}')
     }
+}
+
+# M4-C16: frame the content viewport on the drawn content's extents so the sheet shows the drawing,
+# not empty space. The template's content viewport pointed at an empty template model space, so a
+# generated sheet plotted with border + title block but no content. viewHeight sets the vertical
+# extent; the horizontal follows the window's aspect, so fit the larger of content height and
+# (content width / aspect), with a margin. The viewport is unlocked first so the view can change.
+if ($tplVpHandle -and $hasExtents) {
+    $cx = ($minX + $maxX) / 2.0
+    $cy = ($minY + $maxY) / 2.0
+    $cw = $maxX - $minX
+    $ch = $maxY - $minY
+    # window aspect (width/height) of the content viewport; fall back to the source's 811x524 ratio.
+    $aspect = 1.55
+    $vh = [Math]::Max($ch, $cw / $aspect) * 1.1
+    if ($vh -lt 1.0) { $vh = 100.0 }
+    $lines.Add('viewport.set {"handle":' + (ConvertTo-JsonStringValue -Value $tplVpHandle) + ',"locked":false,"center":[' + (JNum $cx) + ',' + (JNum $cy) + '],"viewHeight":' + (JNum $vh) + '}')
 }
 
 # M4-C14: the Reference plots are monochrome (measured: black ink, 0.05% coloured pixels). The

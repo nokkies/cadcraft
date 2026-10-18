@@ -123,6 +123,32 @@ if ($tplLayout) {
     }
 }
 
+# M4-C16: the template's content viewport handle (largest paper-window model-space window, id>=2).
+# The template's content viewport was authored over an empty template model space, so its stored view
+# points at empty space; a generated sheet plots with border + title block but no content. Reframing
+# it on the drawn content's extents (below) fixes that. Read the handle, never hard-code.
+$tplVpHandle = ''
+$tplVpArea = -1.0
+if ($tplLayout) {
+    $tvps = Invoke-CliSteps -Cli $cli -Drawing $Template -Steps @(
+        ('layout.set {"name":' + (ConvertTo-JsonStringValue -Value $tplLayout) + '}'),
+        'entities {"type":"Viewport","limit":100}'
+    )
+    if ($null -ne $tvps) {
+        foreach ($e in $tvps.entities) {
+            $g = $e.geometry
+            $vid = -1
+            if ($g.PSObject.Properties.Name -contains 'id') { $vid = [int]$g.id }
+            if ($vid -ge 2) {
+                $w = 0.0; $h = 0.0
+                if ($g.PSObject.Properties.Name -contains 'width') { $w = [double]$g.width }
+                if ($g.PSObject.Properties.Name -contains 'height') { $h = [double]$g.height }
+                if (($w * $h) -gt $tplVpArea) { $tplVpArea = $w * $h; $tplVpHandle = [string]$e.handle }
+            }
+        }
+    }
+}
+
 # --- model-space geometry (faithful rebuild) --------------------------------------
 # Like gen-scd.ps1, carry every line and text across so the generated sheet matches the working
 # drawing. A TMD is a drawn table (lines + text), not graphical terminal symbols, so there is no
@@ -130,6 +156,18 @@ if ($tplLayout) {
 $ents = Invoke-CliSteps -Cli $cli -Drawing $BomDrawing -Steps @('entities {"limit":5000}')
 if ($null -eq $ents) { throw 'could not read the TMD model entities' }
 function JNum { param($v) return ([double]$v).ToString([System.Globalization.CultureInfo]::InvariantCulture) }
+
+# M4-C16: the drawn content's bounding box, so the content viewport can be framed on it.
+$minX = [double]::MaxValue; $minY = [double]::MaxValue; $maxX = [double]::MinValue; $maxY = [double]::MinValue
+function Track-XY { param($x, $y) if ($null -ne $x -and $null -ne $y) { $x = [double]$x; $y = [double]$y; if ($x -lt $script:minX) { $script:minX = $x }; if ($x -gt $script:maxX) { $script:maxX = $x }; if ($y -lt $script:minY) { $script:minY = $y }; if ($y -gt $script:maxY) { $script:maxY = $y } } }
+foreach ($e in $ents.entities) {
+    $g = $e.geometry
+    if ($g.PSObject.Properties.Name -contains 'start' -and $g.start) { Track-XY $g.start.x $g.start.y }
+    if ($g.PSObject.Properties.Name -contains 'end' -and $g.end) { Track-XY $g.end.x $g.end.y }
+    if ($g.PSObject.Properties.Name -contains 'center' -and $g.center) { Track-XY $g.center.x $g.center.y }
+    if ($g.PSObject.Properties.Name -contains 'insert' -and $g.insert) { Track-XY $g.insert.x $g.insert.y }
+}
+$hasExtents = ($minX -lt $maxX -and $minY -lt $maxY)
 
 $lines = New-Object System.Collections.Generic.List[string]
 $attribJson = ($tbAttribs.Keys | Sort-Object | ForEach-Object {
@@ -186,6 +224,17 @@ foreach ($e in $ents.entities) {
 }
 
 $outDwg = Join-Path $OutDir $name
+# M4-C16: frame the content viewport on the drawn content's extents (see gen-scd.ps1 for the note).
+if ($tplVpHandle -and $hasExtents) {
+    $cx = ($minX + $maxX) / 2.0
+    $cy = ($minY + $maxY) / 2.0
+    $cw = $maxX - $minX
+    $ch = $maxY - $minY
+    $aspect = 1.55
+    $vh = [Math]::Max($ch, $cw / $aspect) * 1.1
+    if ($vh -lt 1.0) { $vh = 100.0 }
+    $lines.Add('viewport.set {"handle":' + (ConvertTo-JsonStringValue -Value $tplVpHandle) + ',"locked":false,"center":[' + (JNum $cx) + ',' + (JNum $cy) + '],"viewHeight":' + (JNum $vh) + '}')
+}
 # M4-C14 + M5 lineweights: plot monochrome with entity lineweights honoured, like the Reference
 # (see gen-scd.ps1 for the full note).
 if ($tplLayout) {

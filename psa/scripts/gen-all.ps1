@@ -125,6 +125,18 @@ $f5Last = (($f5 -split "`r?`n" | Where-Object { $_ -match '\S' } | Select-Object
 if ($LASTEXITCODE -ne 0) { Write-Host "[check-f5] FAIL  $f5Last"; $fail = 1 }
 else { Write-Host "[check-f5] PASS  $f5Last" }
 
+# M4-C14: the generated plots are monochrome like the Reference (black ink, <0.5% coloured pixels).
+$ink = (& pwsh -NoProfile -File (Join-Path $s 'check-ink.ps1') 2>&1 | Out-String)
+$inkLast = (($ink -split "`r?`n" | Where-Object { $_ -match '\S' } | Select-Object -Last 1))
+if ($LASTEXITCODE -ne 0) { Write-Host "[check-ink] FAIL  $inkLast"; $fail = 1 }
+else { Write-Host "[check-ink] PASS  $inkLast" }
+
+# M4-C16: each generated sheet's content viewport frames its content (the empty-content defect).
+$f6 = (& pwsh -NoProfile -File (Join-Path $s 'check-f6.ps1') 2>&1 | Out-String)
+$f6Last = (($f6 -split "`r?`n" | Where-Object { $_ -match '\S' } | Select-Object -Last 1))
+if ($LASTEXITCODE -ne 0) { Write-Host "[check-f6] FAIL  $f6Last"; $fail = 1 }
+else { Write-Host "[check-f6] PASS  $f6Last" }
+
 if ($fail -eq 0) {
     Write-Host 'PASS M4 pipeline (all twelve sheets generated; every check green; SCD-002 TX1 is the known D8 question)'
     exit 0
