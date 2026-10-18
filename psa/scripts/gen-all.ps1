@@ -151,8 +151,25 @@ $f8Last = (($f8 -split "`r?`n" | Where-Object { $_ -match '\S' } | Select-Object
 if ($LASTEXITCODE -ne 0) { Write-Host "[check-f8] FAIL  $f8Last"; $fail = 1 }
 else { Write-Host "[check-f8] PASS  $f8Last" }
 
+# Fidelity audits. These compare each generated sheet against its source on an axis the checks above
+# cannot see, and they only guard anything if they run: a check that has to be remembered is a check
+# that will be forgotten. Each prints names, counts and numbers only, never drawing text.
+#   audit-layers      every source layer exists with the same 11 properties
+#   audit-sheet-space paper/model entity counts and the model-space text multiset
+#   audit-textstyles  every text style with its font, height and width factor
+#   audit-blocks      block definitions, reference transforms and attribute values
+#   audit-linetypes   the linetype table, header variables, and that the renderer dashes correctly
+#   audit-colours     rendered stroke geometry and colours, through one fixed window
+$audits = @('audit-layers', 'audit-sheet-space', 'audit-textstyles', 'audit-blocks', 'audit-linetypes', 'audit-colours')
+foreach ($a in $audits) {
+    $out = (& pwsh -NoProfile -File (Join-Path $s ($a + '.ps1')) 2>&1 | Out-String)
+    $last = (($out -split "`r?`n" | Where-Object { $_ -match '\S' } | Select-Object -Last 1))
+    if ($LASTEXITCODE -ne 0) { Write-Host "[$a] FAIL  $last"; $fail = 1 }
+    else { Write-Host "[$a] PASS  $last" }
+}
+
 if ($fail -eq 0) {
-    Write-Host 'PASS M4 pipeline (all twelve sheets generated; every check green; SCD-002 TX1 is the known D8 question)'
+    Write-Host 'PASS M4 pipeline (all twelve sheets generated; every check and fidelity audit green; SCD-002 TX1 is the known D8 question)'
     exit 0
 } else {
     Write-Host 'FAIL M4 pipeline (see unexpected lines above)'
