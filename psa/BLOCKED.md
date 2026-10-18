@@ -48,29 +48,47 @@ circles as polygon approximations, so identical DWG data reads less crisply than
 the same data. This is the same M5 render-fidelity gap, not a generation defect -- the data is
 byte-faithful to the source.
 
-### M5 — multi-viewport paper-space plots composite unreliably (build 0.061, corrected build 0.065)
+### M5 — multi-viewport paper-space plots composite unreliably (build 0.061, corrected 0.065, WITHDRAWN 0.101)
 
-Comparing a generated sheet's `exportpdf` with the Reference PDF, some sheets plot their content and
-some plot empty even though the DWG data is correct. Build 0.062 first recorded this as "the source
-plots the same way, so it is a cadcraft gap and not a generation bug" -- that conclusion was WRONG,
-based on comparing two broken exportpdf plots. Build 0.065 found and fixed the real generation bug
-(the template's content viewport pointed at empty space, so generated sheets plotted border + title
-block with no content; now reframed on the content). What remains is genuinely upstream: cadcraft's
-layout-to-PDF composites a layout's several paper-space viewports inconsistently, so `exportpdf` of a
-correct DWG may still show a sheet empty or cropped even though AutoCAD (and cadcraft's own GUI/model
-render) show it complete.
+**This entry is withdrawn.** It claimed cadcraft's `exportpdf` "does not reproduce that composite
+reliably", so a correct DWG "may still show a sheet empty or cropped". Measured at build 0.101, that is
+not what cadcraft does: it composites multiple paper-space viewports correctly.
 
-The sheets carry several paper-space viewports (a large content window plus small detail/zoom windows,
-e.g. handles 30F5 content + 41D5 detail on the GA). AutoCAD composites them so the plotted PDF reads
-as one complete drawing; cadcraft's `exportpdf` does not reproduce that composite reliably. check-f6
-guards the DWG data (the content viewport must frame the content), which is now correct for all twelve
-sheets; the exportpdf composite is the remaining upstream gap.
+The test. GAD-001's source sheet has four paper-space viewports. Two are sheet-level (their `viewCenter`
+equals their paper-space centre, so they frame the sheet), and one is a genuine detail viewport: handle
+41D5, paper rect centred (128, 98) mm measuring 206×156, with `viewCenter` (875, 1629) and `viewHeight`
+3188 — pointing into model space, which is what a detail/zoom window is. Exporting the source sheet with
+`exportpdf {layouts, paper A3, fit}` and counting the vector items whose centre falls inside 41D5's rect:
 
-Synthetic repro for upstream: a drawing with a paper-space layout containing two model-space viewports
-of different sizes over the same model content; `exportpdf` the layout and compare with what AutoCAD's
-PLOT produces for the same file. The expected behaviour is that the plotted page shows each viewport's
-window with its own model view composited onto the sheet, as AutoCAD does. Written up for upstream as
-`psa/pr/multi-viewport-plot.md`.
+| region | drawings | path items |
+|---|---|---|
+| 41D5 detail viewport rect | 122 | **5,402** |
+| equal-size control region elsewhere on the sheet | 3 | 69 |
+
+A 78× difference against a same-size control. The detail viewport's model content is composited onto the
+plotted page, which is the behaviour this entry said cadcraft could not do.
+
+**What the observation was actually seeing.** Two real things, neither of them a compositing gap:
+
+1. **The empty plots were a generation bug, and it was fixed at build 0.065** — the template's content
+   viewport pointed at empty space, so sheets plotted border and title block with nothing in the drawing
+   area. That is the part build 0.065 already corrected.
+2. **The detail viewports are now erased deliberately**, at build 0.066, to fix ghosting: cadcraft's
+   `saveas` renumbers viewport ids and promotes one of them into the model-window list, which made
+   content plot twice. So a *generated* sheet has two viewports where the source has four, and its plot
+   legitimately lacks the detail window. That is a generation choice with a recorded reason, not a
+   renderer failure.
+
+**The real upstream defect, still open, is narrower and different:** `saveas` renumbers viewport ids and
+promotes a paper-space viewport into the model-space window list. That is what forced the 0.066 erase.
+It is recorded in `psa/pr/multi-viewport-plot.md`; that note should be read as the id-promotion defect,
+not as evidence that compositing is broken.
+
+**Also recorded here as a limitation hit while testing:** `mview` does not accept `handles` in
+script-file JSON ("no viewport given"), and it cannot help here regardless — the detail viewports were
+*erased*, not turned off, so there is nothing for `mview on` to restore. Restoring them would mean
+re-creating the viewport entities, which is generation work, not a renderer gap.
+
 
 
 
