@@ -1291,12 +1291,23 @@ pub fn place_text_entity(d: &Drawing, t: &cadcraft_doc::Text, value: &str) -> (c
     let ts = text_style(d, &t.style);
     let font = cadcraft_fonts::TextFont::resolve(&ts.font);
     let (h, v) = align(t.halign, t.valign);
+    // A TEXT entity's own width factor (DXF group 41) defaults to 1.0, so a drawing that sets the
+    // factor on the style -- the usual way -- would otherwise render at 1.0 and drop the style's
+    // value. Honour an explicit per-entity factor, else the style's, else 1.0. `layout_mtext_entity`
+    // below already reads the style.
+    let width_factor = if t.width_factor.is_finite() && t.width_factor.abs() > 1e-6 && (t.width_factor - 1.0).abs() > 1e-12 {
+        t.width_factor
+    } else if ts.width_factor.is_finite() && ts.width_factor > 0.0 {
+        ts.width_factor
+    } else {
+        1.0
+    };
     let p = cadcraft_fonts::TextParams {
         insert: t.insert.xy(),
         align_pt: t.align_pt.map(|p| p.xy()),
         height: t.height,
         rotation: t.rotation,
-        width_factor: t.width_factor,
+        width_factor,
         oblique: t.oblique,
         h,
         v,
