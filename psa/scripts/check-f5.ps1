@@ -18,11 +18,23 @@
 [CmdletBinding()]
 param(
     [string]$OutDir,
-    [int]$MinContentBytes = 5000
+    [int]$MinContentBytes = 5000,
+    [string]$FontAlt = 'arial.ttf'
 )
 
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
+
+# SHX text substitution for the plotted PDFs (see export-pdf.ps1's header note). The PSA text
+# styles name isocp.shx, which cadcraft cannot parse, so without this every text falls back to the
+# built-in stroke font. cadcraft's FONTALT (CADCRAFT_FONTALT) renders an unfindable font (an SHX
+# file) in the named face instead; setting it here makes the review PDFs render SHX text in a real
+# TrueType face. It changes only the render, never the DWG data. Pass -FontAlt '' for the stroke font.
+if ([string]::IsNullOrWhiteSpace($FontAlt)) {
+    Remove-Item Env:\CADCRAFT_FONTALT -ErrorAction SilentlyContinue
+} else {
+    $env:CADCRAFT_FONTALT = $FontAlt
+}
 
 function Get-PSADrawingsRoot {
     foreach ($scope in 'Process', 'User', 'Machine') {

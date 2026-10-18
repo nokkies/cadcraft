@@ -15,6 +15,15 @@
 # sheets). The rule used here is derived from the layout's own plot, not guessed per name:
 # landscape unless the drawing is one of the known portrait GAD sheets. See Get-Landscape.
 #
+# SHX text substitution: the PSA text styles name isocp.shx, which cadcraft cannot parse, so by
+# default its every text falls back to the built-in single-stroke font (measured: 99/99 texts on a
+# schematic sheet). cadcraft's intended lever is FONTALT (CADCRAFT_FONTALT): for a font it cannot
+# find (an SHX file), it renders in the FONTALT font when that names a findable face. This script
+# sets CADCRAFT_FONTALT for the export process so the plotted PDFs render SHX text in a real
+# TrueType face (default arial.ttf, a clean sans-serif cadcraft finds in C:\Windows\Fonts) instead
+# of the stroke font. It changes only the RENDER (preview/exportpdf), never the DWG data -- AutoCAD
+# still opens the sheet with the real isocp.shx. Pass -FontAlt '' to keep cadcraft's stroke font.
+#
 # Writes only inside $D\fusion.
 
 [CmdletBinding()]
@@ -22,11 +31,20 @@ param(
     [string]$Inventory,
     [string]$InfoDir,
     [string]$OutDir,
+    [string]$FontAlt = 'arial.ttf',
     [switch]$Force
 )
 
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
+
+# Font substitution for SHX text in the rendered PDFs (see the header note). Set in this process's
+# environment so the cadcraft-cli child processes cadcraft-cli launched below inherit it.
+if ([string]::IsNullOrWhiteSpace($FontAlt)) {
+    Remove-Item Env:\CADCRAFT_FONTALT -ErrorAction SilentlyContinue
+} else {
+    $env:CADCRAFT_FONTALT = $FontAlt
+}
 
 function Get-PSADrawingsRoot {
     foreach ($scope in 'Process', 'User', 'Machine') {

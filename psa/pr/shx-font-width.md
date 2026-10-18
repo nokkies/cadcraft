@@ -73,6 +73,15 @@ cannot close this: switching the style to a TrueType face would both alter the d
 source and require a font cadcraft is not permitted to ship (clean-room), so the fix is the SHX
 reader described above.
 
+**Mitigation shipped (build 0.076, generation side).** cadcraft's `TextFont::resolve` already
+renders an unfindable font (an SHX file) in the `FONTALT` face when one is set. The PSA scripts now
+set `CADCRAFT_FONTALT=arial.ttf` for the PDF export, so the review PDFs render SHX text in real
+TrueType outlines instead of the stroke font -- crisper, professional-looking text. This is a
+*quality* mitigation, not a width fix: Arial's advance widths are not isocp's, so the advance-width
+error above is unchanged (it just now reads as Arial-vs-isocp rather than stroke-vs-isocp). The DWG
+data is untouched and AutoCAD still opens the sheet with the real isocp.shx. The full fix remains
+the SHX reader.
+
 ## Why it is not a quick patch
 
 Closing it means reading the SHX shape/metric format (a public Autodesk format spec) and giving

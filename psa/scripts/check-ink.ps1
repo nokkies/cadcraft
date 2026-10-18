@@ -17,12 +17,19 @@
 param(
     [string]$OutDir,
     [double]$MaxColouredPct = 0.5,   # Reference measures 0.04-0.06%; allow an order of magnitude of margin
-    [double]$MinInkPct = 0.05        # floor that catches a truly-empty frame (~0%); the Reference's own
+    [double]$MinInkPct = 0.05,       # floor that catches a truly-empty frame (~0%); the Reference's own
                                      # sparse cover sheet measures 0.66% ink, so this is only an empty guard
+    [string]$FontAlt = 'arial.ttf'   # SHX text substitution for the rendered PDFs (see export-pdf.ps1)
 )
 
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
+
+if ([string]::IsNullOrWhiteSpace($FontAlt)) {
+    Remove-Item Env:\CADCRAFT_FONTALT -ErrorAction SilentlyContinue
+} else {
+    $env:CADCRAFT_FONTALT = $FontAlt
+}
 
 function Get-PSADrawingsRoot {
     foreach ($scope in 'Process', 'User', 'Machine') {
