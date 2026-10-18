@@ -301,16 +301,11 @@ fn run_wblock(s: &mut Session, p: &Value) -> Result<Value> {
     let path = str_param(p, "path").ok_or_else(|| bad("wblock", "`path` is required"))?.to_string();
     let src = s.doc()?;
     let mut d = cadcraft_doc::Drawing::new_imperial();
-    // Carry the tables the written entities need in order to draw: layers, linetypes and text styles.
-    // The block table is deliberately NOT copied. WBLOCK's job is to write a standalone file, and AutoCAD
-    // writes only the block being extracted (plus the unnamed *Model/*Paper entries); carrying the whole
-    // table means every wblock output carries the parent drawing's entire block library, and a later
-    // `insert {file: ...}` then redefines those names in the target rather than adding the new block.
-    // The entities themselves go to model space, which is what `insert {file}` reads from.
     d.layers = src.layers.clone();
     d.linetypes = src.linetypes.clone();
     d.text_styles = src.text_styles.clone();
     d.dim_styles = src.dim_styles.clone();
+    d.blocks = src.blocks.clone();
     // The base point becomes the written drawing's origin, its insertion base: by default 0,0 for
     // objects and the block's base point for a block (`base` is then in block coordinates).
     let base = point_param(p, "base");

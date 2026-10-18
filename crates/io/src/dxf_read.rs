@@ -481,27 +481,20 @@ fn entity(kind: &str, tags: &[Tag]) -> Option<(Common, EntityKind)> {
             k
         }
         "ACAD_TABLE" => EntityKind::Table(acad_table(tags)),
-        "VIEWPORT" => {
-            // A viewport our writer stamped as the paper-space window keeps that role across a DWG
-            // save: DWG stores no viewport id, so group 69 comes back renumbered by record order and
-            // a second sheet window would otherwise be read as a model window and draw model content
-            // over the sheet. The marker is authoritative over the renumbered group 69.
-            let marked_sheet = crate::dxf_ext::is_sheet_view(tags);
-            EntityKind::Viewport(Viewport {
-                center: t.p(10),
-                width: t.fd(40, 1.0),
-                height: t.fd(41, 1.0),
-                view_center: Vec2::new(t.fd(12, 0.0), t.fd(22, 0.0)),
-                view_height: t.fd(45, 1.0),
-                id: if marked_sheet { 1 } else { t.i(69).unwrap_or(0) as u32 },
-                locked: t.i(90).unwrap_or(0) & 16384 != 0,
-                frozen_layers: crate::dxf_ext::read_frozen(tags),
-                layer_colors: crate::dxf_ext::read_layer_colors(tags),
-                // Status flags: 65536 = non-rectangular clipping (by the 340 entity), 131072 = off.
-                clip: t.s(340).and_then(|h| Handle::parse_hex(&h)).filter(|h| h.0 != 0 && t.i(90).unwrap_or(0) & 65536 != 0),
-                on: t.i(90).unwrap_or(0) & 131072 == 0,
-            })
-        }
+        "VIEWPORT" => EntityKind::Viewport(Viewport {
+            center: t.p(10),
+            width: t.fd(40, 1.0),
+            height: t.fd(41, 1.0),
+            view_center: Vec2::new(t.fd(12, 0.0), t.fd(22, 0.0)),
+            view_height: t.fd(45, 1.0),
+            id: t.i(69).unwrap_or(0) as u32,
+            locked: t.i(90).unwrap_or(0) & 16384 != 0,
+            frozen_layers: crate::dxf_ext::read_frozen(tags),
+            layer_colors: crate::dxf_ext::read_layer_colors(tags),
+            // Status flags: 65536 = non-rectangular clipping (by the 340 entity), 131072 = off.
+            clip: t.s(340).and_then(|h| Handle::parse_hex(&h)).filter(|h| h.0 != 0 && t.i(90).unwrap_or(0) & 65536 != 0),
+            on: t.i(90).unwrap_or(0) & 131072 == 0,
+        }),
         "WIPEOUT" => {
             let o = t.p(10);
             let u = t.p(11);
