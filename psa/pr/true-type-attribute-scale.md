@@ -1,63 +1,75 @@
-# TrueType text inside a scaled block renders larger than the same text at scale 1
+# GAD-001's balloon text is oversized in the SOURCE, not a cadcraft rendering defect
 
-Found while chasing why the generated GAD-001 plot carries ~8% more ink than its source. The cause is not
-missing or extra content: it is that balloon tag text renders at a different size depending on the font, and
-GAD-001 is the one sheet whose balloons use a TrueType style.
+Status: **withdrawn as a cadcraft bug.** Re-measured at build 0.123; the earlier version of this note (and
+the "~8% ink" line it carried) attributed the effect to a TrueType-vs-stroke rendering difference. That
+attribution was wrong. What follows is what the measurements actually show.
 
-## The measurement
+## The observation that started it
 
-The `_TagCircle` balloon block is inserted **25 times at scale 6.0** on GAD-001, in both the source and the
-generated sheet, with identical block definitions (base 0,0, 2 entities, not dynamic) and identical
-reference scales. The attribute text uses style `ISOCP` → `tahoma.ttf`, `trueType: true`.
+`check-sheetink` (M4-C23) plots each generated sheet against its source with `CADCRAFT_FONTALT` pinned for
+both sides. Eleven of twelve sheets come out at exactly 1.0000; **GAD-001 comes out at 2.0087** — the
+generated sheet plots more than twice its source's ink. The extra ink is the balloon tag text.
 
-Measured on the plotted PDFs, the balloon circles:
+## What the data actually says
 
-| | balloon size | count |
-|---|---|---|
-| source | **9.98 mm** | 25 |
-| generated | **12.51 mm** | 25 |
+The `_TagCircle` balloon block is inserted 25 times at scale 6.0 on GAD-001, in both sheets. The attribute
+text uses style `ISOCP` → `tahoma.ttf`.
 
-Ratio **1.253 ≈ 1 / 0.7986**. Same drawing data, one rendering difference, and it is uniform across all 25.
+| | balloon circle (rendered) | tag text (rendered) | stored attrib height |
+|---|---|---|---|
+| source | **30.0 mm** | **2.5 mm** | 2.5 |
+| generated | 30.0 mm | 15.0 mm | 15.0 |
 
-Extracted text sizes tell the same story: the source's balloons do not appear as extractable text at all,
-while the generated sheet reports **4 spans at 8.62 mm** where the source has none above 1.15 mm. The
-reference plots (the issued PDFs) have **no text above 4 mm** anywhere, so 8.62 mm is out of family.
+The source draws a **30 mm circle with 2.5 mm text inside it** — the tag is one twelfth the circle. That is
+the source's own data: it stores the attribute at the attdef height (2.5) and the reference at scale 6.0, and
+cadcraft renders the block *geometry* through the scaled transform while the *attribute* draws at its stored
+height. The generated sheet stores the attribute already multiplied by the scale (15.0), so its text fills
+its circle the way a balloon should.
 
-## It is specific to the TrueType path
+## Why this is not a cadcraft renderer bug
 
-Across all twelve sheets, exactly one mismatches:
+cadcraft's `insert` renderer draws block entities through the scaled sub-context and attributes through the
+outer context. That looks like an asymmetry, and a fix to make attributes scale with the reference was built
+and tested. It **made the generated sheet worse, not better**: the generated attributes already carry the
+scale, so applying the reference transform again rendered them at scale-squared — balloons at **90 mm**, not
+15. The fix was reverted; the reasoning is now a comment at the attribute draw path in
+`crates/render/src/lib.rs`.
 
-| sheet | balloon style | font | source height | generated height |
-|---|---|---|---|---|
-| **GAD-001** | `ISOCP` | **tahoma.ttf** | **2.5** | **15.0** |
-| GAD-002 | `isocp2` | isocp2.shx | 5.0 | 5.0 |
-| SCD-001..005 | `isocp2` | isocp2.shx | 2.0 | 2.0 |
-| TMD-001..005 | `isocp2` | isocp2.shx | 3.0 | 3.0 |
+The reason the double-scale is wrong is the DXF contract: an `ATTRIB`'s stored height is the **effective**
+height, already including the insert scale. cadcraft's `insert_with` (engine) folds the scale in when it
+creates the attribute, which is correct. A freshly inserted `_TagCircle` at scale 1 stores 2.5 and renders
+2.5; at scale 6 stores 15.0 and renders 15.0 — always internally consistent with its circle.
 
-Eleven sheets use the SHX style and reproduce the source height exactly. GAD-001 uses the TrueType style and
-its height comes back as `2.5 × 6 = 15` — the block scale multiplied into the attribute height.
+## The real difference, and why only GAD-001 shows it
 
-A synthetic test on the template's empty model space confirms the mechanism: text at height 2.5 rendered
-directly measures 2.50, and the same text inside `_TagCircle` inserted at scale 6 measures **15.00**.
+The eleven other sheets store their balloon attributes **already scaled**, so source and generated agree and
+the ink ratio is 1.0000. GAD-001's source stores the **raw attdef height** (2.5) instead. So the source and
+the generated sheet genuinely differ — but the generated sheet is the one that is internally correct, and the
+source is the one whose text is too small for its circle. The 2.0087 ratio is the generated sheet plotting
+text at the size that matches its balloons, against a source that plots that text far too small.
 
 ## What is and is not being claimed
 
-**Claimed:** the same drawing data produces balloons 1.25× larger in the generated plot than in the source
-plot, and the effect tracks the TrueType style rather than the geometry.
+**Claimed:** GAD-001's source stores balloon tag text at the raw attdef height while its balloons are at scale
+6, so the source's own plot has 2.5 mm text in 30 mm circles; the generated sheet's 15 mm text is the
+internally consistent value. The 2.0087 ink ratio is this, not a renderer fault.
 
-**Not claimed:** that AutoCAD's own output is the reference for which size is right. cadcraft cannot read
-SHX, so the source's `isocp2` balloons are rendered with cadcraft's stroke font and are *not* what AutoCAD
-would draw either. What is solid is the internal inconsistency — the TrueType path scales attribute text
-where the stroke path does not, so two sheets that should agree do not.
+**Not claimed:** that the generated 15 mm is what AutoCAD would draw for the source. cadcraft cannot read SHX,
+so the other sheets' `isocp2` balloons are rendered with cadcraft's stroke font and are not what AutoCAD would
+draw either. The reference PDFs are a different project (different document prefix — see
+`reference-pdfs-are-not-the-target.md`) and cannot settle the exact intended size.
 
-## Where to look
+## Where this leaves the gate
 
-`crates/fonts/src/ttf.rs` is where TrueType faces are resolved and measured; the stroke path in
-`crates/fonts/src/stroke.rs` is the one that agrees with the source. The difference is in how an attribute's
-height is combined with the enclosing `INSERT` scale on the TrueType path.
+`check-sheetink` and `check-textheights` both flag GAD-001 and both are named accepted exceptions in
+`gen-all.ps1`. They are kept because the ratio is real and worth watching, but the exception reason is now
+recorded correctly: it is a source-data characteristic, not an open cadcraft defect. **There is no cadcraft
+bug here to file upstream.** An earlier version of this note called it one; that call is withdrawn.
 
-## Related, and previously corrected
+## The lesson
 
-`colour-stroke-fidelity.md` already noticed these same balloon glyphs and wrongly attributed them to SHX
-substitution; that note corrects the attribution and records that `ISOCP` → `tahoma.ttf` is rendered
-natively and never substituted. This note goes one step further and identifies the scale interaction.
+A balloon whose circle scales 6× and whose text does not looks, from one angle, like a renderer that forgot to
+scale text. It is more cheaply explained by the source storing the text unscaled — and that explanation was
+available from the stored heights, which were readable the whole time. The renderer fix was built, measured on
+the real sheets, and caught by the measurement (90 mm) before it could ship. The governing question, again:
+*is this the renderer's behaviour, or the data's?* — and the data was checkable first.

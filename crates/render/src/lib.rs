@@ -1543,6 +1543,13 @@ fn insert(b: &mut Builder, ctx: &Ctx, e: &Entity, ins: &cadcraft_doc::Insert, rg
         let attmode = ctx.d.header.i64("ATTMODE", 1);
         // The reference's transparency; each attribute draws with its own.
         let reference = b.transparency;
+        // Attributes draw at their STORED height, through the OUTER context -- NOT the block's scaled
+        // sub-context. A DXF ATTRIB's height is the EFFECTIVE height (the insert scale is already folded in
+        // when the attribute is created, see engine `insert_with`), so applying the reference transform again
+        // would double it. This is the deliberate counterpart to the block-geometry path above, which DOES
+        // scale: block entities are stored unscaled and scaled at draw time, attributes are stored scaled.
+        // (A render change here was tried and reverted: scaling the attribute text made a DXF-correct sheet
+        // whose attributes already carry the scale render at scale-squared -- balloons at 90mm, not 15mm.)
         for a in &ins.attribs {
             if attmode == 0 || (a.invisible && attmode != 2) {
                 continue;

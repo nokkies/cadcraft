@@ -187,13 +187,17 @@ foreach ($a in ($checks + $audits)) {
 # Known accepted exceptions, named so that a NEW failure is never mistaken for a standing one. Each is a
 # true positive recording an open question, not a regression:
 #   SCD-002 TX1        the 2.0mm terminal text below the 2.5mm rule minimum -- Reinach's open D8 question.
-#   GAD-001 textheights  balloon tags render at 15.0mm against a 2.5mm source, because the TrueType style
-#                      ISOCP multiplies the enclosing INSERT scale into the attribute height where the SHX
-#                      path does not. Measured and written up in psa/pr/true-type-attribute-scale.md; it is
-#                      a cadcraft rendering defect, not something the generator can set differently.
-#   GAD-001 sheetink   the same defect seen from the other side: the oversized balloons double the sheet's
-#                      plotted ink, so it measures 2.0087 against its source where the other eleven measure
-#                      exactly 1.0000. One cause, two checks reporting it. Not a second problem.
+#   GAD-001 textheights  balloon tags render at 15.0mm against a 2.5mm source. NOT a cadcraft defect: the
+#                      source stores the tag at the raw attdef height (2.5) while its balloon is at scale 6,
+#                      so the source's own plot has 2.5mm text in a 30mm circle. The generated sheet stores the
+#                      attribute already scaled (15.0), which is internally consistent with its circle. The
+#                      checks flag the difference because it is real; the generated value is the correct one.
+#                      Written up (and the earlier "TrueType renderer defect" claim withdrawn) in
+#                      psa/pr/true-type-attribute-scale.md.
+#   GAD-001 sheetink   the same difference seen from the ink side: the generated sheet plots its balloon text
+#                      at the size that matches its balloons, so it measures 2.0087 against a source that plots
+#                      that text far too small, where the other eleven measure exactly 1.0000. One cause, two
+#                      checks reporting it. Not a second problem, and not a cadcraft bug.
 # A check that fails silently is worse than no check, so these are recorded here rather than suppressed.
 if ($fail -eq 0) {
     Write-Host 'PASS M4 pipeline (all twelve sheets generated; every check and fidelity audit green; SCD-002 TX1 is the known D8 question)'

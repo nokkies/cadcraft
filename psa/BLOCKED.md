@@ -107,27 +107,33 @@ entry's earlier revisions needed.
 script-file JSON ("no viewport given"), and it could not have helped regardless — the detail viewports were
 *erased*, not turned off, so there was nothing for `mview on` to restore. Moot now that the erase is gone.
 
-### M5 — TrueType attribute text inside a scaled block renders larger than the same text at scale 1 (build 0.111)
+### M5 — WITHDRAWN: GAD-001's oversized balloon text is a source-data trait, not a cadcraft defect (build 0.111, withdrawn 0.123)
 
 Discovered while explaining why generated sheets carried more ink than their sources. The `_TagCircle`
 balloon block is inserted 25 times at scale 6.0 on GAD-001 with identical block definitions and identical
-reference scales on both sides; its text uses style `ISOCP` → `tahoma.ttf`. Balloons measure **9.98mm in the
-source plot and 12.51mm in the generated one**, ratio 1.253, uniform across all 25.
+reference scales on both sides; its text uses style `ISOCP` → `tahoma.ttf`. The generated sheet's balloons
+measure 15.0mm against a 2.5mm source, and the sheet plots 2.0087× its source's ink.
 
-Across all twelve sheets exactly one mismatches, and it is exactly the one whose balloons use a TrueType
-style: GAD-001 renders 2.5 → **15.0**, while the eleven sheets using `isocp2.shx` reproduce 2.0, 3.0 and 5.0
-exactly. A synthetic test on the template's empty model space confirms the mechanism — text at height 2.5
-drawn directly measures 2.50, the same text inside `_TagCircle` at scale 6 measures **15.00**. So the TrueType
-path multiplies the enclosing `INSERT` scale into an attribute height where the stroke path does not.
+**This was recorded as a cadcraft renderer defect. It is not one.** Re-measured at build 0.123. cadcraft's
+`insert` renderer draws block *geometry* through the scaled sub-context and *attributes* at their stored
+height through the outer context — and that is correct, because a DXF `ATTRIB`'s height is the effective
+height with the insert scale already folded in (which engine `insert_with` does). A fix that made attributes
+scale with the reference was built and measured: it rendered the generated sheet's already-scaled attributes
+at scale-squared — balloons at **90mm**, not 15 — so it was reverted. The reasoning is now a comment at the
+attribute draw path in `crates/render/src/lib.rs`.
 
-The claim is bounded: what is measured is that identical drawing data yields 1.25× larger balloons and that
-the effect tracks the TrueType style rather than the geometry. What is **not** claimed is that AutoCAD's
-output settles which size is correct — cadcraft cannot read SHX, so the source's own `isocp2` balloons are
-themselves stroke-substituted. What holds is the internal inconsistency: two paths that should agree don't.
+The real difference is in the source's own data: GAD-001 stores its balloon tag at the raw attdef height
+(2.5) while its balloon is at scale 6, so the source's own plot has 2.5mm text inside a 30mm circle. The
+generated sheet stores the attribute already scaled (15.0), which is internally consistent with its circle.
+The eleven other sheets store their balloon attributes already scaled, so source and generated agree and
+measure 1.0000. The 2.0087 ratio is the generated sheet plotting text at the size that matches its balloons,
+against a source that plots that text far too small. **There is no cadcraft bug here to file upstream.**
 
-Written up as `psa/pr/true-type-attribute-scale.md`. Guarded in-repo by `check-textheights.ps1` (M4-C22),
-which fails GAD-001 and passes the other eleven; that failure is a named accepted exception in `gen-all.ps1`
-because it is a renderer defect, not something the generator can set differently.
+The earlier version of this entry claimed the TrueType path scaled attribute text where the stroke path did
+not; both paths render at the stored height identically, so that mechanism was wrong. The writeup
+`psa/pr/true-type-attribute-scale.md` carries the corrected finding. `check-textheights.ps1` (M4-C22) and
+`check-sheetink.ps1` (M4-C23) still flag GAD-001 — the difference is real and worth watching — and remain
+named accepted exceptions in `gen-all.ps1`, now with the correct reason recorded.
 
 
 
