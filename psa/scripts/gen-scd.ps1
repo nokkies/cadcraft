@@ -1,14 +1,16 @@
 # gen-scd.ps1 -- cadcraft card M4-C4 (and the pattern for the other SCD sheets)
 #
 # Builds a schematic diagram (SCD) sheet with cadcraft. The working SCD draws its terminals as
-# small circles (layer 3C, radius 2.5) -- DRAWING-WORK D1 asks for the library TERMINAL block
-# instead. This generator reads the working drawing's model-space geometry and re-emits it:
-# every line and text is carried across, and each 3C terminal circle becomes an `insert` of the
-# library TERMINAL block at the same centre. The title block and border are inserted with the
-# attributes read from the working drawing's paper-space layout.
+# small circles (layer 3C, radius 2.5) with a numeric label. DRAWING-WORK D1 asked for the library
+# TERMINAL block instead, but that block is a 70x10 horizontal terminal-strip graphic that overruns
+# the wire spacing and never turns vertical, so it was reverted (build 0.064): the generator now
+# re-emits the terminal circles exactly as the source draws them. This generator reads the working
+# drawing's model-space geometry and re-emits it: every line, circle and text is carried across.
+# The title block and border are inserted with the attributes read from the working drawing's
+# paper-space layout.
 #
 # It is a faithful rebuild, not a redraw: the geometry comes from the source so the sheet matches
-# the working drawing, and the one deliberate change is circles -> TERMINAL blocks (D1).
+# the working drawing, terminals included.
 #
 # Writes only inside $D\fusion.
 
@@ -244,28 +246,16 @@ foreach ($e in $ents.entities) {
             }
         }
         'Circle' {
-            # A terminal is a circle on the terminal layer that carries its number as a numeric text
-            # at its centre. That text test is the reliable signal: the terminal circle radius is not
-            # uniform across sheets (SCD-001/003/004/005 draw them at r=2.5, SCD-002 at r=3), so a
-            # fixed radius would misclassify a whole sheet. Accept a radius match too, for any
-            # terminal whose number text is absent.
-            $key = ([Math]::Round([double]$g.center.x, 0)).ToString([System.Globalization.CultureInfo]::InvariantCulture) + ',' +
-                   ([Math]::Round([double]$g.center.y, 0)).ToString([System.Globalization.CultureInfo]::InvariantCulture)
-            $isTerminal = ($e.layer -eq $TerminalLayer) -and
-                ($numByPos.ContainsKey($key) -or ([Math]::Abs([double]$g.radius - $TerminalRadius) -lt 0.1))
-            if ($isTerminal) {
-                # DRAWING-WORK D1: the library terminal block replaces the drawn circle, and its
-                # number goes into the block's TERM_NO attribute (M4-C3).
-                $attribs = ''
-                if ($numByPos.ContainsKey($key)) {
-                    $attribs = ',"attribs":{"TERM_NO":' + (ConvertTo-JsonStringValue -Value $numByPos[$key]) + '}'
-                    [void]$consumedNums.Add($key)
-                }
-                $lines.Add('insert {"name":"TERMINAL","at":[' + (JNum $g.center.x) + ',' + (JNum $g.center.y) + ']' + $attribs + ',"layer":' + (ConvertTo-JsonStringValue -Value $e.layer) + '}')
-                $terminalCount++
-            } else {
-                $lines.Add('circle {"center":[' + (JNum $g.center.x) + ',' + (JNum $g.center.y) + '],"radius":' + (JNum $g.radius) + ',"layer":' + (ConvertTo-JsonStringValue -Value $e.layer) + '}')
-            }
+            # A terminal is a small circle on the terminal layer (r=2.5 on SCD-001/003/004/005, r=3 on
+            # SCD-002) with its number as a numeric MText at the same centre. DRAWING-WORK D1 asked to
+            # replace the circle with the library TERMINAL block (build 0.030, M4-C3), but the block is
+            # a 70x10 horizontal terminal-STRIP graphic (measured: polyline 3000->3070 x 2994.7->3004.7),
+            # ~14x wider than the 5-unit circle and never vertical, so on these wire-connected points it
+            # overruns the wire spacing and wires plot over it. Reverted (build 0.064): draw the circle
+            # as the source does and leave the number MText to be drawn normally by the MText branch.
+            # The block is the wrong graphic for a per-wire terminal marker; D1 does not hold here.
+            $lines.Add('circle {"center":[' + (JNum $g.center.x) + ',' + (JNum $g.center.y) + '],"radius":' + (JNum $g.radius) + ',"layer":' + (ConvertTo-JsonStringValue -Value $e.layer) + '}')
+            $terminalCount++
         }
         'Block Reference' {
             # Carry a library block insert (e.g. the GA's _TagCircle balloons) with its attributes.

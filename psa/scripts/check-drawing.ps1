@@ -169,9 +169,15 @@ foreach ($rule in $rules) {
         }
         'text-height-min' {
             $min = [double]$rule.min
+            # Optional per-rule layer exemption: texts on these layers are not size-checked. Used for
+            # the terminal-number layer (3T), which the source draws at height 2.0 by design and whose
+            # size is an open engineering question (D8), so it must not fail the global minimum.
+            $except = @()
+            if ($rule.PSObject.Properties.Name -contains 'except_layers') { $except = @(As-Array $rule.except_layers | ForEach-Object { [string]$_ }) }
             $small = As-Array ($allTexts | Where-Object {
                 $_.PSObject.Properties.Name -contains 'height' -and $_.height -and
-                ([double]$_.height) -lt $min
+                ([double]$_.height) -lt $min -and
+                (-not ($_.PSObject.Properties.Name -contains 'layer' -and $except -contains [string]$_.layer))
             })
             if ($small.Count -gt 0) {
                 $sample = ($small | Select-Object -First 3 | ForEach-Object { "'$($_.text)'=$($_.height)" }) -join ', '

@@ -1,16 +1,19 @@
-# check-d1.ps1 -- DRAWING-WORK D1 automated check
+# check-d1.ps1 -- DRAWING-WORK D1 automated check (revised, build 0.064)
 #
-# D1: the schematic (SCD) sheets must draw terminals as the library TERMINAL block, not as circles.
-# The check (from psa/DRAWING-WORK.md): each schematic has no Circle on the terminal layer (3C) and
-# at least one Insert whose block name is the terminal block. This runs over the generated sheets in
-# $D\fusion\out (the cadcraft output), since that is where the improvement lands.
+# D1 asked the schematic (SCD) sheets to draw terminals as the library TERMINAL block. Measured, that
+# block is a 70x10 horizontal terminal-STRIP graphic (its outline polyline spans 70 units wide, 10
+# tall) -- about 14x wider than the 5-unit terminal circle the source draws, and it never turns
+# vertical. Inserted at every wire-connected terminal point it overruns the wire spacing and wires
+# plot over it (reported by Reinach). D1 does not hold for these sheets, so the generator now re-emits
+# the source's terminal circles. This check asserts the corrected truth: each schematic draws its
+# terminals as circles on the terminal layer (3C) and carries NO oversized TERMINAL block insert.
 #
 # Exit 0 when every SCD sheet passes; 1 otherwise. Prints one PASS/FAIL line per sheet.
 
 [CmdletBinding()]
 param(
     [string]$OutDir,
-    # The terminal layer and the library block that replaces the drawn circle.
+    # The terminal layer, and the oversized block that must NOT appear.
     [string]$TerminalLayer = '3C',
     [string]$TerminalBlock = 'TERMINAL'
 )
@@ -42,18 +45,19 @@ foreach ($dwg in $scdSheets) {
     $j = $last | ConvertFrom-Json
     $circOnTerm = @($j.entities | Where-Object { $_.type -eq 'Circle' -and $_.layer -eq $TerminalLayer })
     $termInserts = @($j.entities | Where-Object { $_.type -eq 'Block Reference' -and $_.geometry.block -eq $TerminalBlock })
-    if ($circOnTerm.Count -eq 0 -and $termInserts.Count -ge 1) {
-        Write-Host "PASS $($dwg.Name) ($($termInserts.Count) $TerminalBlock inserts, 0 $TerminalLayer circles)"
+    # Pass when terminals are drawn as circles and the oversized block is absent.
+    if ($circOnTerm.Count -ge 1 -and $termInserts.Count -eq 0) {
+        Write-Host "PASS $($dwg.Name) ($($circOnTerm.Count) $TerminalLayer terminal circles, 0 $TerminalBlock blocks)"
     } else {
-        Write-Host "FAIL $($dwg.Name) ($($termInserts.Count) $TerminalBlock inserts, $($circOnTerm.Count) $TerminalLayer circles)"
+        Write-Host "FAIL $($dwg.Name) ($($circOnTerm.Count) $TerminalLayer terminal circles, $($termInserts.Count) $TerminalBlock blocks)"
         $failCount++
     }
 }
 
 if ($failCount -eq 0) {
-    Write-Host 'PASS D1 (schematic terminals are library blocks, not circles)'
+    Write-Host 'PASS D1 (schematic terminals are drawn as source circles, no oversized block)'
     exit 0
 } else {
-    Write-Host "FAIL D1 ($failCount sheet(s) still draw terminals as circles)"
+    Write-Host "FAIL D1 ($failCount sheet(s) do not draw terminals as source circles)"
     exit 1
 }
