@@ -1768,7 +1768,13 @@ pub fn read(bytes: &[u8]) -> Result<Drawing> {
             continue;
         }
         if up.starts_with("*PAPER_SPACE") {
-            let lname = paper_block_for.get(&up).cloned().unwrap_or_else(|| first_layout.clone());
+            // Only a paper-space block a LAYOUT object owns has a home. A block record left over from a
+            // deleted layout (an orphan `*Paper_Space*`) has no owner; merging its entities into the first
+            // layout would show them on a live sheet -- a file with two viewports reading back as four. Drop
+            // it. (The empty-layout fallback above already registered `*PAPER_SPACE` for the sole layout.)
+            let Some(lname) = paper_block_for.get(&up).cloned() else {
+                continue;
+            };
             if let Some(l) = d.layouts.iter_mut().find(|l| l.name == lname) {
                 for (_, _, e) in ents {
                     l.entities.push(e);
@@ -1809,6 +1815,13 @@ pub fn read(bytes: &[u8]) -> Result<Drawing> {
         let owner_name = owner.and_then(|o| rx.brs.get(&o.trim().to_ascii_uppercase()).cloned()).map(|n| n.to_ascii_uppercase());
         let to_paper = paper || owner_name.as_deref().is_some_and(|n| n.starts_with("*PAPER_SPACE"));
         if to_paper {
+            // An entity owned by a *PAPER_SPACE* block that no LAYOUT owns is orphaned (a deleted layout's
+            // leftover); drop it rather than merge it into the first layout. An entity flagged paper with no
+            // owning paper-space block is the sole layout's content in older files and still falls back.
+            let owned_orphan = owner_name.as_deref().is_some_and(|n| n.starts_with("*PAPER_SPACE") && !paper_block_for.contains_key(n));
+            if owned_orphan {
+                continue;
+            }
             let lname = owner_name.and_then(|n| paper_block_for.get(&n).cloned()).unwrap_or_else(|| first_layout.clone());
             if let Some(l) = d.layouts.iter_mut().find(|l| l.name == lname) {
                 l.entities.push(e);
