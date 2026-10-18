@@ -176,7 +176,7 @@ $audits = @('audit-layers', 'audit-sheet-space', 'audit-textstyles', 'audit-bloc
 # six content layers inside a generated sheet's content viewport, removed about 40% of the drawing, and
 # check-f2, check-f5, check-f6, check-detail and check-textheights all passed it. Eleven sheets plot at
 # exactly 1.0000 of their source; GAD-001 plots at 2.0087, the TrueType balloon defect doubling its text ink.
-$checks = @('check-detail', 'check-textheights', 'check-sheetink')
+$checks = @('check-detail', 'check-textheights', 'check-sheetink', 'check-mtextwidth')
 foreach ($a in ($checks + $audits)) {
     $out = (& pwsh -NoProfile -File (Join-Path $s ($a + '.ps1')) 2>&1 | Out-String)
     $last = (($out -split "`r?`n" | Where-Object { $_ -match '\S' } | Select-Object -Last 1))

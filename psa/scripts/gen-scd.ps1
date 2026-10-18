@@ -317,7 +317,21 @@ foreach ($e in $ents.entities) {
                        ([Math]::Round([double]$g.insert.y, 0)).ToString([System.Globalization.CultureInfo]::InvariantCulture)
                 # Skip a numeric text whose number we moved into a TERMINAL block's attribute.
                 if ($consumedNums.Contains($key)) { continue }
-                $lines.Add('mtext {"at":[' + (JNum $g.insert.x) + ',' + (JNum $g.insert.y) + '],"text":' + (ConvertTo-JsonStringValue -Value $g.contents) + ',"height":' + (JNum $g.height) + ',"layer":' + (ConvertTo-JsonStringValue -Value $e.layer) + '}')
+                # Carry the source's wrap width and text style. mtext's `width` is the column the paragraph
+                # wraps into; with no width the whole MText renders on ONE line, so the source's 500-unit
+                # NOTES block plotted as a single line running off the sheet. Build 0.119 measured 225 MText
+                # across the twelve sheets losing their width this way. The style matters for the same reason
+                # the width does -- every source MText here uses isocp2 and they all came out as Standard,
+                # invisible today only because cadcraft renders every .shx style through the same stroke font.
+                # mtext takes a `style` param, so no current-style dance is needed here.
+                $mtExtra = ''
+                if ($g.PSObject.Properties.Name -contains 'width' -and [double]$g.width -gt 0) {
+                    $mtExtra += ',"width":' + (JNum $g.width)
+                }
+                if ($g.PSObject.Properties.Name -contains 'style' -and -not [string]::IsNullOrWhiteSpace([string]$g.style)) {
+                    $mtExtra += ',"style":' + (ConvertTo-JsonStringValue -Value $g.style)
+                }
+                $lines.Add('mtext {"at":[' + (JNum $g.insert.x) + ',' + (JNum $g.insert.y) + '],"text":' + (ConvertTo-JsonStringValue -Value $g.contents) + ',"height":' + (JNum $g.height) + ',"layer":' + (ConvertTo-JsonStringValue -Value $e.layer) + $mtExtra + '}')
                 # DRAWING-WORK D4: annotate the RTB terminal number beside an I/O channel name.
                 if ($pinByChannel.Count -gt 0) {
                     $chan = ([string]$g.contents).Trim()

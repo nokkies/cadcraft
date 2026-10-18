@@ -282,7 +282,16 @@ foreach ($e in $ents.entities) {
         }
         'MText' {
             if ($g.PSObject.Properties.Name -contains 'insert') {
-                $lines.Add('mtext {"at":[' + (JNum $g.insert.x) + ',' + (JNum $g.insert.y) + '],"text":' + (ConvertTo-JsonStringValue -Value $g.contents) + ',"height":' + (JNum $g.height) + ',"layer":' + (ConvertTo-JsonStringValue -Value $e.layer) + '}')
+                # Carry the source's wrap width and text style (see build 0.119: 225 MText across the twelve
+                # sheets lost their wrap width, so a five-line NOTES block rendered as one line off the sheet).
+                $mtExtra = ''
+                if ($g.PSObject.Properties.Name -contains 'width' -and [double]$g.width -gt 0) {
+                    $mtExtra += ',"width":' + (JNum $g.width)
+                }
+                if ($g.PSObject.Properties.Name -contains 'style' -and -not [string]::IsNullOrWhiteSpace([string]$g.style)) {
+                    $mtExtra += ',"style":' + (ConvertTo-JsonStringValue -Value $g.style)
+                }
+                $lines.Add('mtext {"at":[' + (JNum $g.insert.x) + ',' + (JNum $g.insert.y) + '],"text":' + (ConvertTo-JsonStringValue -Value $g.contents) + ',"height":' + (JNum $g.height) + ',"layer":' + (ConvertTo-JsonStringValue -Value $e.layer) + $mtExtra + '}')
                 $carried++
             }
         }
