@@ -25,8 +25,24 @@
 
 param(
     [string]$OutDir,
-    # How far the generated share may drift from the source's, as a fraction of the source's.
-    [double]$Tolerance = 0.35
+    # How far the generated share may drift from the source's, as a fraction of the source's. Set at build
+    # 0.109 from the twelve source shares measured with CADCRAFT_FONTALT unset, the setting every run has
+    # actually used. It is only valid under that setting -- see FontAlt.
+    [double]$Tolerance = 0.35,
+    # Pin the SHX text substitution before any plot. Build 0.116 found that CADCRAFT_FONTALT changes the
+    # plotted ink count by roughly eighteen times (one source sheet: 795 path items with arial.ttf, 15,263
+    # without -- substituted text comes out as TrueType glyph outlines counted as few paths, unsubstituted
+    # text as cadcraft's stroke font, one line segment per glyph). This check compares a RATIO, so both sides
+    # move together and the ratio survives, but only if one setting is used for both.
+    #
+    # The default is '' (unset), deliberately rather than by oversight. CADCRAFT_FONTALT is set at no scope,
+    # Process, User or Machine, and no generator sets it, so "unset" is what every past run of this check
+    # measured under and pinning it keeps the existing tolerance valid. Pinning arial.ttf was tried first and
+    # changed the verdict: one sheet moves from 62% against a 54% source (drift 15%, PASS) to 26% against 47%
+    # (drift 46%, FAIL), because the substitution changes the ink MIX inside the window, not just its scale.
+    # Either setting is defensible; drifting between them is not. Change FontAlt only together with
+    # re-measuring the twelve source shares.
+    [string]$FontAlt = ''
 )
 
 Set-StrictMode -Version 3.0
@@ -42,6 +58,8 @@ function Get-PSADrawingsRoot {
 
 $D = Get-PSADrawingsRoot
 . (Join-Path $PSScriptRoot 'project.ps1')
+if ([string]::IsNullOrWhiteSpace($FontAlt)) { Remove-Item Env:\CADCRAFT_FONTALT -ErrorAction SilentlyContinue }
+else { $env:CADCRAFT_FONTALT = $FontAlt }
 if ([string]::IsNullOrWhiteSpace($OutDir)) { $OutDir = Join-Path $D 'fusion\out' }
 if (-not (Test-Path -LiteralPath $OutDir)) { throw "out dir not found: $OutDir" }
 $runStep = Join-Path $PSScriptRoot 'run-step.ps1'
