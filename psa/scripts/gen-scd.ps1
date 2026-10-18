@@ -158,26 +158,50 @@ if ($tplLayout) {
 
 # M4-C16: the template's content viewport handle (the model-space window with the largest paper
 # window; id>=2, since id<=1 is the sheet-border viewport). Read it, never hard-code.
+# M4-C17: also collect the OTHER model-window handles (id>=2, not the content window). The template
+# carries a second sheet viewport (41D1) and an empty detail window (41D5) alongside the content
+# window (30F5). cadcraft's saveas renumbers the ids and promotes 41D1 (a sheet viewport) into the
+# model-window list, so the saved layout has THREE model windows all drawing the same model content
+# -> the plotted/GUI sheet shows the content two or three times over (Reinach: "looks duplicated").
+# Erasing every model window except the content one leaves 1021 (sheet) + 30F5 (content): one clean
+# copy. Erase by role (id>=2, not the content handle), never by hard-coded handle.
 $tplVpHandle = ''
 $tplVpArea = -1.0
+$tplExtraVpHandles = @()
 if ($tplLayout) {
     $tvps = Invoke-CliSteps -Cli $cli -Drawing $Template -Steps @(
         ('layout.set {"name":' + (ConvertTo-JsonStringValue -Value $tplLayout) + '}'),
         'entities {"type":"Viewport","limit":100}'
     )
     if ($null -ne $tvps) {
+        # The template carries four viewports: the sheet window (1021, id=1, the largest), a second
+        # smaller sheet window (41D1, id=1), the content window (30F5, id>=2, the largest model
+        # window), and an empty detail window (41D5, id>=2). cadcraft's saveas renumbers the ids and
+        # promotes the second sheet window into the model list, so the saved sheet draws the content
+        # two or three times (the "duplicated" look). Keep only the largest sheet window and the
+        # largest model window; erase every other viewport. Identify by role (largest per class),
+        # never by hard-coded handle.
+        $sheetHandle = ''; $sheetArea = -1.0
+        $modelHandles = @()
         foreach ($e in $tvps.entities) {
             $g = $e.geometry
             $vid = -1
             if ($g.PSObject.Properties.Name -contains 'id') { $vid = [int]$g.id }
-            if ($vid -ge 2) {
-                $w = 0.0; $h = 0.0
-                if ($g.PSObject.Properties.Name -contains 'width') { $w = [double]$g.width }
-                if ($g.PSObject.Properties.Name -contains 'height') { $h = [double]$g.height }
-                $area = $w * $h
+            $w = 0.0; $h = 0.0
+            if ($g.PSObject.Properties.Name -contains 'width') { $w = [double]$g.width }
+            if ($g.PSObject.Properties.Name -contains 'height') { $h = [double]$g.height }
+            $area = $w * $h
+            if ($vid -le 1) {
+                if ($area -gt $sheetArea) { $sheetArea = $area; $sheetHandle = [string]$e.handle }
+            } else {
+                $modelHandles += [string]$e.handle
                 if ($area -gt $tplVpArea) { $tplVpArea = $area; $tplVpHandle = [string]$e.handle }
             }
         }
+        # Erase: every sheet window except the largest, and every model window except the content one.
+        $keep = @($sheetHandle, $tplVpHandle)
+        $allHandles = @($tvps.entities | ForEach-Object { [string]$_.handle })
+        $tplExtraVpHandles = @($allHandles | Where-Object { $_ -notin $keep })
     }
 }
 
@@ -197,8 +221,11 @@ $minX = [double]::MaxValue; $minY = [double]::MaxValue; $maxX = [double]::MinVal
 function Track-XY { param($x, $y) if ($null -ne $x -and $null -ne $y) { $x = [double]$x; $y = [double]$y; if ($x -lt $script:minX) { $script:minX = $x }; if ($x -gt $script:maxX) { $script:maxX = $x }; if ($y -lt $script:minY) { $script:minY = $y }; if ($y -gt $script:maxY) { $script:maxY = $y } } }
 foreach ($e in $ents.entities) {
     $g = $e.geometry
-    if ($g.PSObject.Properties.Name -contains 'start' -and $g.start) { Track-XY $g.start.x $g.start.y }
-    if ($g.PSObject.Properties.Name -contains 'end' -and $g.end) { Track-XY $g.end.x $g.end.y }
+    # Line geometry carries its endpoints as `a` and `b` (not start/end); Circle as `center`;
+    # MText/Text/Insert as `insert`. Missing the `a`/`b` fields would drop every line and skew the
+    # box to just the text/circle points.
+    if ($g.PSObject.Properties.Name -contains 'a' -and $g.a) { Track-XY $g.a.x $g.a.y }
+    if ($g.PSObject.Properties.Name -contains 'b' -and $g.b) { Track-XY $g.b.x $g.b.y }
     if ($g.PSObject.Properties.Name -contains 'center' -and $g.center) { Track-XY $g.center.x $g.center.y }
     if ($g.PSObject.Properties.Name -contains 'insert' -and $g.insert) { Track-XY $g.insert.x $g.insert.y }
 }
@@ -390,6 +417,16 @@ if ($name -match 'GAD-001') {
 # generated sheet plotted with border + title block but no content. viewHeight sets the vertical
 # extent; the horizontal follows the window's aspect, so fit the larger of content height and
 # (content width / aspect), with a margin. The viewport is unlocked first so the view can change.
+# M4-C17: first switch to the layout and erase the extra model windows (the duplicate sheet viewport
+# and the empty detail window) so only the content window remains -- otherwise the saved sheet draws
+# the content two or three times (the "duplicated" look).
+if ($tplLayout) {
+    $lines.Add('layout.set {"name":' + (ConvertTo-JsonStringValue -Value $tplLayout) + '}')
+}
+if ($tplExtraVpHandles.Count -gt 0) {
+    $hjson = ($tplExtraVpHandles | ForEach-Object { ConvertTo-JsonStringValue -Value $_ }) -join ','
+    $lines.Add('erase {"handles":[' + $hjson + ']}')
+}
 if ($tplVpHandle -and $hasExtents) {
     $cx = ($minX + $maxX) / 2.0
     $cy = ($minY + $maxY) / 2.0

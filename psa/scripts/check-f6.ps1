@@ -62,8 +62,9 @@ foreach ($dwg in $dwgs) {
     $xs = @(); $ys = @()
     foreach ($e in $eo.entities) {
         $g = $e.geometry
-        if ($g.PSObject.Properties.Name -contains 'start' -and $g.start) { $xs += [double]$g.start.x; $ys += [double]$g.start.y }
-        if ($g.PSObject.Properties.Name -contains 'end' -and $g.end) { $xs += [double]$g.end.x; $ys += [double]$g.end.y }
+        # Line endpoints are `a`/`b` (not start/end); Circle `center`; text/insert `insert`.
+        if ($g.PSObject.Properties.Name -contains 'a' -and $g.a) { $xs += [double]$g.a.x; $ys += [double]$g.a.y }
+        if ($g.PSObject.Properties.Name -contains 'b' -and $g.b) { $xs += [double]$g.b.x; $ys += [double]$g.b.y }
         if ($g.PSObject.Properties.Name -contains 'center' -and $g.center) { $xs += [double]$g.center.x; $ys += [double]$g.center.y }
         if ($g.PSObject.Properties.Name -contains 'insert' -and $g.insert) { $xs += [double]$g.insert.x; $ys += [double]$g.insert.y }
     }
@@ -91,13 +92,23 @@ foreach ($dwg in $dwgs) {
     if ($null -eq $best) { Write-Host "FAIL $($dwg.Name) no content viewport (id>=2)"; $failCount++; continue }
     $vcx = [double]$best.viewCenter.x; $vcy = [double]$best.viewCenter.y; $vh = [double]$best.viewHeight
 
+    # M4-C17: exactly one model-space window (id>=2). cadcraft's saveas can promote a second sheet
+    # viewport into the model list, so the layout ends up with two or three model windows all drawing
+    # the same content -> the sheet looks duplicated (ghosting). More than one model window FAILs.
+    $modelVpCount = @($vo.entities | Where-Object { $g = $_.geometry; ($g.PSObject.Properties.Name -contains 'id') -and ([int]$g.id -ge 2) }).Count
+    if ($modelVpCount -ne 1) {
+        Write-Host "FAIL $($dwg.Name) ($modelVpCount model-space viewports (id>=2), expected exactly 1 -- duplicate viewports ghost the content)"
+        $failCount++
+        continue
+    }
+
     # Pass when the viewCenter is near the content centre and the view is tall enough to show it.
     $mx = [Math]::Abs($maxX - $minX) * $MarginFrac + 1.0
     $my = $ch * $MarginFrac + 1.0
     $centered = ([Math]::Abs($vcx - $cx) -le $mx) -and ([Math]::Abs($vcy - $cy) -le $my)
     $tallEnough = $vh -ge ($ch * 0.8)
     if ($centered -and $tallEnough) {
-        Write-Host "PASS $($dwg.Name) (content viewport viewCenter ($([Math]::Round($vcx,0)),$([Math]::Round($vcy,0))) near content ($([Math]::Round($cx,0)),$([Math]::Round($cy,0))), viewHeight $([Math]::Round($vh,0)) >= content height $([Math]::Round($ch,0)))"
+        Write-Host "PASS $($dwg.Name) (one content viewport viewCenter ($([Math]::Round($vcx,0)),$([Math]::Round($vcy,0))) near content ($([Math]::Round($cx,0)),$([Math]::Round($cy,0))), viewHeight $([Math]::Round($vh,0)) >= content height $([Math]::Round($ch,0)))"
     } else {
         Write-Host "FAIL $($dwg.Name) (content viewport viewCenter ($([Math]::Round($vcx,0)),$([Math]::Round($vcy,0))) vs content ($([Math]::Round($cx,0)),$([Math]::Round($cy,0))), viewHeight $([Math]::Round($vh,0)) vs content height $([Math]::Round($ch,0)); centered=$centered tallEnough=$tallEnough)"
         $failCount++

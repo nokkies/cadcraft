@@ -1,8 +1,23 @@
 # Paper-space plots do not composite multiple viewports the way AutoCAD does
 
-Status: **feature gap, not a defect.** Filed as an M5 observation from the PSA drawing project. No PR
+Status: **feature gap plus one saveas defect.** Filed as an M5 observation from the PSA drawing project. No PR
 branch attached — this is a paper-space plotting behaviour, a feature-level difference from the
 reference, not a one-line fix. Reinach decides whether it becomes an issue on `storytold/cadcraft`.
+
+## Saveas defect: a sheet viewport is promoted into the model-window list (build 0.066)
+
+A layout's viewport table can hold a *sheet* viewport (the paper-space window that shows the layout
+itself, `viewCenter == center` and `viewHeight == height`) alongside its model windows. On a layout
+that was authored with a second sheet viewport (a real PSA template has two id=1 sheet windows),
+`saveas` renumbers every viewport's id sequentially by handle order, which turns the second sheet
+viewport (id=1) into a model window (id=3). After the save the layout's declared viewports grow: the
+template's `[30F5, 41D5]` becomes `[30F5, 41D1, 41D5]`, and 41D1 — which showed the paper — now draws
+model content, so the sheet renders the same content two or three times (visible ghosting). Reproduced
+with a bare `layout.set` + `saveas` on an untouched template, so it is the save, not the caller. The
+expected behaviour is that a sheet viewport keeps its paper-space role across a save. Worked around
+generation-side (psa/scripts/gen-*.ps1 erase every viewport but the largest sheet window and the
+largest model window before saving); the underlying save should not renumber a sheet viewport into a
+model window.
 
 ## Summary
 
