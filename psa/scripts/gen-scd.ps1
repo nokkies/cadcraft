@@ -167,6 +167,9 @@ if ($tplLayout) {
 # copy. Erase by role (id>=2, not the content handle), never by hard-coded handle.
 $tplVpHandle = ''
 $tplVpArea = -1.0
+$tplVpCenterX = 0.0
+$tplVpCenterY = 0.0
+$tplVpHeight = 0.0
 $tplExtraVpHandles = @()
 if ($tplLayout) {
     $tvps = Invoke-CliSteps -Cli $cli -Drawing $Template -Steps @(
@@ -195,7 +198,16 @@ if ($tplLayout) {
                 if ($area -gt $sheetArea) { $sheetArea = $area; $sheetHandle = [string]$e.handle }
             } else {
                 $modelHandles += [string]$e.handle
-                if ($area -gt $tplVpArea) { $tplVpArea = $area; $tplVpHandle = [string]$e.handle }
+                if ($area -gt $tplVpArea) {
+                    $tplVpArea = $area; $tplVpHandle = [string]$e.handle
+                    # M4-C18: remember the content window's own paper centre and height. The working
+                    # drawings frame this window as view = window centre, viewHeight = window height
+                    # (measured: 11 of 12 sheets use exactly (420,322) vh 524), and draw their content
+                    # in model space to land inside it. Copy that framing rather than recomputing a
+                    # tighter view from the content box, which zoomed in and shifted the view.
+                    if ($g.PSObject.Properties.Name -contains 'center' -and $g.center) { $tplVpCenterX = [double]$g.center.x; $tplVpCenterY = [double]$g.center.y }
+                    $tplVpHeight = $h
+                }
             }
         }
         # Erase: every sheet window except the largest, and every model window except the content one.
@@ -432,11 +444,23 @@ if ($tplVpHandle -and $hasExtents) {
     $cy = ($minY + $maxY) / 2.0
     $cw = $maxX - $minX
     $ch = $maxY - $minY
-    # window aspect (width/height) of the content viewport; fall back to the source's 811x524 ratio.
-    $aspect = 1.55
-    $vh = [Math]::Max($ch, $cw / $aspect) * 1.1
-    if ($vh -lt 1.0) { $vh = 100.0 }
-    $lines.Add('viewport.set {"handle":' + (ConvertTo-JsonStringValue -Value $tplVpHandle) + ',"locked":false,"center":[' + (JNum $cx) + ',' + (JNum $cy) + '],"viewHeight":' + (JNum $vh) + '}')
+    # M4-C18: frame the content window the way the working drawings do -- view at the window's own
+    # paper centre, viewHeight = the window's height (measured: 11 of 12 source sheets use exactly
+    # (420,322) vh 524), because the content is drawn in model space to land inside that window.
+    # But if the content does not actually sit inside that window view (its centre is far from the
+    # window centre, or it is wider/taller than the window shows -- e.g. the big GAD-001 assembly),
+    # fall back to centring on the content and widening the view to fit it.
+    $aspect = if ($tplVpHeight -gt 0) { $tplVpArea / ($tplVpHeight * $tplVpHeight) } else { 1.55 }
+    $shownW = $tplVpHeight * $aspect
+    $fitsInWindow = ([Math]::Abs($cx - $tplVpCenterX) -le ($shownW / 2.0)) -and ([Math]::Abs($cy - $tplVpCenterY) -le ($tplVpHeight / 2.0)) -and ($cw -le $shownW) -and ($ch -le $tplVpHeight)
+    if ($fitsInWindow) {
+        $vh = $tplVpHeight
+        $lines.Add('viewport.set {"handle":' + (ConvertTo-JsonStringValue -Value $tplVpHandle) + ',"locked":false,"center":[' + (JNum $tplVpCenterX) + ',' + (JNum $tplVpCenterY) + '],"viewHeight":' + (JNum $vh) + '}')
+    } else {
+        $vh = [Math]::Max($ch, $cw / $aspect) * 1.1
+        if ($vh -lt 1.0) { $vh = 100.0 }
+        $lines.Add('viewport.set {"handle":' + (ConvertTo-JsonStringValue -Value $tplVpHandle) + ',"locked":false,"center":[' + (JNum $cx) + ',' + (JNum $cy) + '],"viewHeight":' + (JNum $vh) + '}')
+    }
 }
 
 # M4-C14: the Reference plots are monochrome (measured: black ink, 0.05% coloured pixels). The

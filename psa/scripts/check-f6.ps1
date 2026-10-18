@@ -102,15 +102,18 @@ foreach ($dwg in $dwgs) {
         continue
     }
 
-    # Pass when the viewCenter is near the content centre and the view is tall enough to show it.
-    $mx = [Math]::Abs($maxX - $minX) * $MarginFrac + 1.0
-    $my = $ch * $MarginFrac + 1.0
-    $centered = ([Math]::Abs($vcx - $cx) -le $mx) -and ([Math]::Abs($vcy - $cy) -le $my)
-    $tallEnough = $vh -ge ($ch * 0.8)
-    if ($centered -and $tallEnough) {
-        Write-Host "PASS $($dwg.Name) (one content viewport viewCenter ($([Math]::Round($vcx,0)),$([Math]::Round($vcy,0))) near content ($([Math]::Round($cx,0)),$([Math]::Round($cy,0))), viewHeight $([Math]::Round($vh,0)) >= content height $([Math]::Round($ch,0)))"
+    # Pass when the viewport's view rectangle contains the content box. The view shows a region of
+    # height viewHeight and width viewHeight * (window width/height), centred on viewCenter. The
+    # working drawings frame the window at its own centre (view = window centre, vh = window height),
+    # so the check is "content inside the view", not "view centred on content".
+    $winAspect = if ($best.PSObject.Properties.Name -contains 'width' -and [double]$best.height -gt 0) { [double]$best.width / [double]$best.height } else { 1.55 }
+    $shownW = $vh * $winAspect
+    $inX = ($minX -ge ($vcx - $shownW / 2.0 - 1.0)) -and ($maxX -le ($vcx + $shownW / 2.0 + 1.0))
+    $inY = ($minY -ge ($vcy - $vh / 2.0 - 1.0)) -and ($maxY -le ($vcy + $vh / 2.0 + 1.0))
+    if ($inX -and $inY) {
+        Write-Host "PASS $($dwg.Name) (content X[$([Math]::Round($minX,0))..$([Math]::Round($maxX,0))] Y[$([Math]::Round($minY,0))..$([Math]::Round($maxY,0))] inside view X[$([Math]::Round($vcx-$shownW/2,0))..$([Math]::Round($vcx+$shownW/2,0))] Y[$([Math]::Round($vcy-$vh/2,0))..$([Math]::Round($vcy+$vh/2,0))])"
     } else {
-        Write-Host "FAIL $($dwg.Name) (content viewport viewCenter ($([Math]::Round($vcx,0)),$([Math]::Round($vcy,0))) vs content ($([Math]::Round($cx,0)),$([Math]::Round($cy,0))), viewHeight $([Math]::Round($vh,0)) vs content height $([Math]::Round($ch,0)); centered=$centered tallEnough=$tallEnough)"
+        Write-Host "FAIL $($dwg.Name) (content X[$([Math]::Round($minX,0))..$([Math]::Round($maxX,0))] Y[$([Math]::Round($minY,0))..$([Math]::Round($maxY,0))] NOT inside view X[$([Math]::Round($vcx-$shownW/2,0))..$([Math]::Round($vcx+$shownW/2,0))] Y[$([Math]::Round($vcy-$vh/2,0))..$([Math]::Round($vcy+$vh/2,0))]; inX=$inX inY=$inY)"
         $failCount++
     }
 }

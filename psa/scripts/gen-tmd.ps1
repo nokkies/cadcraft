@@ -129,6 +129,9 @@ if ($tplLayout) {
 # three times (the "duplicated" look). Identify by role (largest per id class), never by handle.
 $tplVpHandle = ''
 $tplVpArea = -1.0
+$tplVpCenterX = 0.0
+$tplVpCenterY = 0.0
+$tplVpHeight = 0.0
 $tplExtraVpHandles = @()
 if ($tplLayout) {
     $tvps = Invoke-CliSteps -Cli $cli -Drawing $Template -Steps @(
@@ -148,7 +151,11 @@ if ($tplLayout) {
             if ($vid -le 1) {
                 if ($area -gt $sheetArea) { $sheetArea = $area; $sheetHandle = [string]$e.handle }
             } else {
-                if ($area -gt $tplVpArea) { $tplVpArea = $area; $tplVpHandle = [string]$e.handle }
+                if ($area -gt $tplVpArea) {
+                    $tplVpArea = $area; $tplVpHandle = [string]$e.handle
+                    if ($g.PSObject.Properties.Name -contains 'center' -and $g.center) { $tplVpCenterX = [double]$g.center.x; $tplVpCenterY = [double]$g.center.y }
+                    $tplVpHeight = $h
+                }
             }
         }
         $keep = @($sheetHandle, $tplVpHandle)
@@ -248,10 +255,18 @@ if ($tplVpHandle -and $hasExtents) {
     $cy = ($minY + $maxY) / 2.0
     $cw = $maxX - $minX
     $ch = $maxY - $minY
-    $aspect = 1.55
-    $vh = [Math]::Max($ch, $cw / $aspect) * 1.1
-    if ($vh -lt 1.0) { $vh = 100.0 }
-    $lines.Add('viewport.set {"handle":' + (ConvertTo-JsonStringValue -Value $tplVpHandle) + ',"locked":false,"center":[' + (JNum $cx) + ',' + (JNum $cy) + '],"viewHeight":' + (JNum $vh) + '}')
+    # M4-C18: frame the content window as the working drawings do (view = window centre, viewHeight =
+    # window height); fall back to content-centred framing only if the content doesn't fit that view.
+    $aspect = if ($tplVpHeight -gt 0) { $tplVpArea / ($tplVpHeight * $tplVpHeight) } else { 1.55 }
+    $shownW = $tplVpHeight * $aspect
+    $fitsInWindow = ([Math]::Abs($cx - $tplVpCenterX) -le ($shownW / 2.0)) -and ([Math]::Abs($cy - $tplVpCenterY) -le ($tplVpHeight / 2.0)) -and ($cw -le $shownW) -and ($ch -le $tplVpHeight)
+    if ($fitsInWindow) {
+        $lines.Add('viewport.set {"handle":' + (ConvertTo-JsonStringValue -Value $tplVpHandle) + ',"locked":false,"center":[' + (JNum $tplVpCenterX) + ',' + (JNum $tplVpCenterY) + '],"viewHeight":' + (JNum $tplVpHeight) + '}')
+    } else {
+        $vh = [Math]::Max($ch, $cw / $aspect) * 1.1
+        if ($vh -lt 1.0) { $vh = 100.0 }
+        $lines.Add('viewport.set {"handle":' + (ConvertTo-JsonStringValue -Value $tplVpHandle) + ',"locked":false,"center":[' + (JNum $cx) + ',' + (JNum $cy) + '],"viewHeight":' + (JNum $vh) + '}')
+    }
 }
 # M4-C14 + M5 lineweights: plot monochrome with entity lineweights honoured, like the Reference
 # (see gen-scd.ps1 for the full note).
