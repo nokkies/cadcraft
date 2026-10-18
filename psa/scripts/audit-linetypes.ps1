@@ -100,8 +100,25 @@ foreach ($n in @($Project.sheets | Sort-Object)) {
 }
 
 # ---- 2. header variables ---------------------------------------------------
-# Variables that change how the sheet plots without appearing on any entity.
-$headerVars = @('LTSCALE', 'PSLTSCALE', 'CELTSCALE', 'LWDISPLAY', 'MEASUREMENT')
+# Header variables that change how the sheet plots or how new entities are drawn, none of which appear
+# on any entity. The list is the set cadcraft itself round-trips -- crates/io/src/dxf_write.rs
+# HEADER_VARS -- rather than a hand-picked subset, so a difference cannot hide in a name nobody
+# thought to ask about.
+$headerVars = @(
+    'INSBASE', 'LIMMIN', 'LIMMAX', 'SNAPUNIT', 'GRIDUNIT', 'ORTHOMODE', 'FILLMODE', 'MIRRTEXT',
+    'LTSCALE', 'ATTMODE', 'TEXTSIZE', 'TRACEWID', 'CMLSTYLE', 'CMLJUST', 'CMLSCALE', 'TEXTSTYLE',
+    'CLAYER', 'CELTYPE', 'CECOLOR', 'CELTSCALE', 'DIMSCALE', 'DIMSTYLE', 'LUNITS', 'LUPREC',
+    'AUNITS', 'AUPREC', 'ELEVATION', 'THICKNESS', 'FILLETRAD', 'CHAMFERA', 'CHAMFERB', 'ANGBASE',
+    'ANGDIR', 'PDMODE', 'PDSIZE', 'PLINEWID', 'CELWEIGHT', 'LWDISPLAY', 'INSUNITS', 'MEASUREMENT',
+    'PSLTSCALE'
+)
+
+# CLAYER is the layer NEW entities would go to. It is reported as a note rather than a failure: the
+# generators give every emitted entity an explicit layer field, so the current layer cannot misplace
+# content. Measured on the one sheet where it differs (GAD-001, source 'Viewport' vs generated '0'):
+# the entity-by-layer breakdown is identical, and the 'Viewport' layer itself carries 0 entities and
+# has plot=False in both files.
+$noteOnlyVars = @('CLAYER')
 
 function Get-HeaderVar {
     param([string]$Drawing, [string]$Name)
@@ -124,10 +141,14 @@ foreach ($n in @($Project.sheets | Sort-Object)) {
     if (-not (Test-Path -LiteralPath $src) -or -not (Test-Path -LiteralPath $gen)) { continue }
 
     $diffs = @()
+    $notes = @()
     foreach ($v in $headerVars) {
         $a = Get-HeaderVar -Drawing $src -Name $v
         $b = Get-HeaderVar -Drawing $gen -Name $v
-        if ($a -ne $b) { $diffs += ($v + ' [' + $a + '] -> [' + $b + ']') }
+        if ($a -ne $b) {
+            if ($noteOnlyVars -contains $v) { $notes += ($v + ' [' + $a + '] -> [' + $b + ']') }
+            else { $diffs += ($v + ' [' + $a + '] -> [' + $b + ']') }
+        }
     }
 
     $parts = $n.Split('-')
@@ -137,7 +158,9 @@ foreach ($n in @($Project.sheets | Sort-Object)) {
         Write-Host ("FAIL  {0,-16} header variable(s) differ: {1}" -f $short, ($diffs -join '; '))
         $fail++
     } else {
-        Write-Host ("OK    {0,-16} {1} header variables match ({2})" -f $short, $headerVars.Count, ($headerVars -join ', '))
+        $noteStr = ''
+        if ($notes.Count -gt 0) { $noteStr = ' (note: ' + ($notes -join '; ') + ' -- current layer, generators set every entity layer explicitly)' }
+        Write-Host ("OK    {0,-16} all {1} header variables match{2}" -f $short, $headerVars.Count, $noteStr)
     }
 }
 
