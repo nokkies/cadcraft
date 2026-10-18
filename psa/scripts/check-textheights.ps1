@@ -9,6 +9,13 @@
 # no default), the block scale was 6.0 on both sides, and the attribute VALUES matched. The height that
 # renders lives on the attribute's own text properties, which sits in the seam between the two audits.
 #
+# Resolved, and the seam lesson stands. The 2.5-vs-15.0 gap was a bug in the C# generator that made the
+# source sheets: it stored an inserted attribute at the block's raw height instead of the scaled height.
+# Claude fixed that generator and regenerated the sources (psa/REVIEW-0.125.md section 3); the source now
+# carries 15.0 like the generated sheet, so GAD-001 passes this check with no exception. The seam the check
+# covers is still real -- an attribute's rendered height is not in the style table or the block table -- so
+# the check stays.
+#
 # That is a general shape of gap: two checks that each cover a layer of a structure, and the value that
 # matters lives in the seam between them. The fix is not to tighten either audit but to measure the rendered
 # quantity directly.

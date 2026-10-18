@@ -192,18 +192,14 @@ foreach ($a in ($checks + $audits)) {
 # Known accepted exceptions, named so that a NEW failure is never mistaken for a standing one. Each is a
 # true positive recording an open question, not a regression:
 #   SCD-002 TX1        the 2.0mm terminal text below the 2.5mm rule minimum -- Reinach's open D8 question.
-#   GAD-001 textheights  balloon tags render at 15.0mm against a 2.5mm source. NOT a cadcraft defect: the
-#                      source stores the tag at the raw attdef height (2.5) while its balloon is at scale 6,
-#                      so the source's own plot has 2.5mm text in a 30mm circle. The generated sheet stores the
-#                      attribute already scaled (15.0), which is internally consistent with its circle. The
-#                      checks flag the difference because it is real; the generated value is the correct one.
-#                      Written up (and the earlier "TrueType renderer defect" claim withdrawn) in
-#                      psa/pr/true-type-attribute-scale.md.
-#   GAD-001 sheetink   the same difference seen from the ink side: the generated sheet plots its balloon text
-#                      at the size that matches its balloons, so it measures 2.0087 against a source that plots
-#                      that text far too small, where the other eleven measure exactly 1.0000. One cause, two
-#                      checks reporting it. Not a second problem, and not a cadcraft bug.
-# A check that fails silently is worse than no check, so these are recorded here rather than suppressed.
+# A check that fails silently is worse than no check, so this is recorded here rather than suppressed.
+#
+# There used to be two GAD-001 exceptions here (textheights and sheetink), both standing for the same thing:
+# the balloon tag rendered at 15.0mm against a 2.5mm source, and the sheet plotted 2.0087 its source's ink.
+# Both are gone. The 2.5mm source height was a bug in the C# generator that made the source sheets, fixed and
+# the sources regenerated (psa/REVIEW-0.125.md section 3) -- the source now carries 15.0 like the generated
+# sheet. And the 2.0087 ink was the general arrangement's viewport framed too tight, fixed at build 0.127
+# (M4-G2). GAD-001 now passes both checks at 1.0000 with no exception.
 if ($fail -eq 0) {
     Write-Host 'PASS M4 pipeline (all twelve sheets generated; every check and fidelity audit green; SCD-002 TX1 is the known D8 question)'
     exit 0

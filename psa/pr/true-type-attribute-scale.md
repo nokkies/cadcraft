@@ -1,8 +1,14 @@
 # GAD-001's balloon text is oversized in the SOURCE, not a cadcraft rendering defect
 
-Status: **withdrawn as a cadcraft bug.** Re-measured at build 0.123; the earlier version of this note (and
-the "~8% ink" line it carried) attributed the effect to a TrueType-vs-stroke rendering difference. That
-attribution was wrong. What follows is what the measurements actually show.
+Status: **withdrawn as a cadcraft bug, and now fully resolved.** Re-measured at build 0.123; the earlier
+version of this note (and the "~8% ink" line it carried) attributed the effect to a TrueType-vs-stroke
+rendering difference. That attribution was wrong. Then, at the review of build 0.125, Claude found the source
+generator (C#) that made the source sheets stored an inserted attribute at the block's raw height instead of
+the scaled height, fixed it, and regenerated the sources — so the source now carries 15.0 like the generated
+sheet (psa/REVIEW-0.125.md section 3). The 2.0087 ink ratio was separately shown to be the general
+arrangement's viewport framed too tight, fixed at build 0.127 (M4-G2). GAD-001 now passes both
+`check-sheetink` and `check-textheights` at 1.0000 with no exception. What follows is the record of how the
+"renderer defect" conclusion was reached, tested, and withdrawn.
 
 ## The observation that started it
 
@@ -61,10 +67,12 @@ draw either. The reference PDFs are a different project (different document pref
 
 ## Where this leaves the gate
 
-`check-sheetink` and `check-textheights` both flag GAD-001 and both are named accepted exceptions in
-`gen-all.ps1`. They are kept because the ratio is real and worth watching, but the exception reason is now
-recorded correctly: it is a source-data characteristic, not an open cadcraft defect. **There is no cadcraft
-bug here to file upstream.** An earlier version of this note called it one; that call is withdrawn.
+Resolved at build 0.129. `check-sheetink` and `check-textheights` no longer flag GAD-001 and its two named
+exceptions are removed from `gen-all.ps1`. The source generator was fixed and the sources regenerated, so the
+source's balloon tag now stores 15.0 (the scaled height) like the generated sheet, and the general
+arrangement's viewport is framed on the source's own view (build 0.127), so the sheet plots at 1.0000. There
+is no cadcraft bug here to file upstream — an earlier version of this note called it one; that call is
+withdrawn.
 
 ## The lesson
 

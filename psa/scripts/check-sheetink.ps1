@@ -15,11 +15,17 @@
 #
 # The tolerance, measured rather than invented. Build 0.109 rejected check-detail's first version for
 # asserting a threshold nobody had checked against the reference, so this one is calibrated on the real set
-# before being written down. Whole-sheet ink ratio, generated over source, all twelve sheets:
-#   eleven sheets are exactly 1.0000 (GAD-002, SCD-001..005, TMD-001..005)
-#   GAD-001 is 2.0087 -- the TrueType balloon defect, see psa/pr/true-type-attribute-scale.md
-# So the real spread is 1.0000 and one known 2.0087, and the default tolerance is +/-10%: every sheet that
-# is not the known defect passes exactly, and the known defect fails loudly rather than being averaged away.
+# before being written down. Whole-sheet ink ratio, generated over source, all twelve sheets, after the
+# orphan-viewport and viewport-framing fixes (builds 0.126/0.127): every sheet is exactly 1.0000. There is
+# no outlier. The default tolerance is +/-10%, generous enough to absorb the annotations the generators add
+# and tight enough that a sheet losing a frozen-viewport's worth of ink fails.
+#
+# A note on history: this band was originally calibrated with GAD-001 sitting at 2.0087, blamed on a
+# "TrueType balloon defect" (psa/pr/true-type-attribute-scale.md). That was wrong twice over -- the oversized
+# balloon text was a source-data trait (withdrawn at build 0.123), and the 2.0087 itself was the general
+# arrangement's viewport being framed too tight (fixed at build 0.127, M4-G2). With the fixed sources and the
+# correct framing, GAD-001 plots at 1.0000 like every other sheet, so there is no known defect to hold a band
+# open for.
 #
 # THE MEASUREMENT ROUTE IS PART OF THE MEASUREMENT, and this is the reason for the FontAlt parameter. The
 # count depends on how text is rasterised: with CADCRAFT_FONTALT=arial.ttf, SCD-001's source plots 832 path
