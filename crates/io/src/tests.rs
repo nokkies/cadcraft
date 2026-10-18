@@ -2373,3 +2373,63 @@ fn foreign_table_reads_cell_text_height_and_keeps_style_scale() {
     assert_eq!(t2.cells[0][0].text_height, Some(150.0));
     assert_eq!(t2.cells[0][1].text_height, None);
 }
+
+/// A drawing with two paper-space layouts, each holding one distinctive line so the two are tellable.
+fn two_layout_drawing() -> (Drawing, Handle, Handle) {
+    let mut d = sample();
+    let c = Common { layer: "0".into(), ..Common::default() };
+    let l1 = d
+        .add(&Space::Paper("Layout1".into()), c.clone(), EntityKind::Line(Line { a: Vec3::new(100.0, 100.0, 0.0), b: Vec3::new(101.0, 101.0, 0.0) }))
+        .unwrap();
+    // A second layout, whose entities live in the *Paper_Space0 block.
+    d.layouts.push(Layout::new("Layout2", 2));
+    let l2 = d
+        .add(&Space::Paper("Layout2".into()), c, EntityKind::Line(Line { a: Vec3::new(200.0, 200.0, 0.0), b: Vec3::new(201.0, 201.0, 0.0) }))
+        .unwrap();
+    (d, l1, l2)
+}
+
+/// An orphan `*Paper_Space*` block -- a block record that no LAYOUT object owns -- must not have its
+/// entities merged into a live layout. This is the shape a drawing has after a paper-space layout is
+/// deleted but its block survives (a real file had a `*Paper_Space0` left over from a template cut); the
+/// reader used to dump such a block's entities into the first layout, so a file with two viewports read
+/// back as four.
+#[test]
+fn orphan_paper_space_block_is_not_merged_into_a_layout() {
+    let (d, _l1, l2) = two_layout_drawing();
+    let text = write_dxf(&d);
+    // Drop the LAYOUT object for Layout2, leaving its *Paper_Space0 block (and the line in it) orphaned.
+    let tags = cadcraft_dxf::parse(text.as_bytes()).unwrap();
+    let mut kept: Vec<cadcraft_dxf::Tag> = Vec::with_capacity(tags.len());
+    let mut i = 0;
+    while i < tags.len() {
+        // A LAYOUT object runs from `0 LAYOUT` to the next `0 <type>` at top level.
+        if tags[i].code == 0 && tags[i].str() == "LAYOUT" {
+            let mut j = i + 1;
+            while j < tags.len() && tags[j].code != 0 {
+                j += 1;
+            }
+            let is_layout2 = tags[i..j].iter().any(|t| t.code == 1 && t.str() == "Layout2");
+            if !is_layout2 {
+                kept.extend_from_slice(&tags[i..j]);
+            }
+            i = j;
+            continue;
+        }
+        kept.push(tags[i].clone());
+        i += 1;
+    }
+    let orphaned = cadcraft_dxf::write_ascii(&kept);
+    let back = read_dxf(orphaned.as_bytes()).unwrap();
+    // Layout2's object is gone, so only Layout1 (and Model) remain as layouts.
+    let names: Vec<&str> = back.layouts.iter().map(|l| l.name.as_str()).collect();
+    assert!(!names.contains(&"Layout2"), "the deleted layout must not be reconstructed: {names:?}");
+    // The orphan block's line must NOT have been dumped into Layout1.
+    let l1 = back.layout("Layout1").expect("Layout1 still exists");
+    let has_orphan_line = l1.entities.iter().any(|e| matches!(&e.kind, EntityKind::Line(x) if (x.a.x - 200.0).abs() < 1e-6));
+    assert!(!has_orphan_line, "the orphan *Paper_Space0 line leaked into Layout1 (the four-viewport bug)");
+    // Layout1 keeps its own line.
+    let has_own = l1.entities.iter().any(|e| matches!(&e.kind, EntityKind::Line(x) if (x.a.x - 100.0).abs() < 1e-6));
+    assert!(has_own, "Layout1 must keep its own entities");
+    let _ = l2;
+}
