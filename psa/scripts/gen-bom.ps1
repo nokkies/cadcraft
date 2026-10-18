@@ -263,9 +263,11 @@ function Emit-Layer {
         $script:curLayer = $Name
     }
 }
+# The PRELIMINARY / NOT FOR CONSTRUCTION stamps live on their own layer. They are PAPER-space
+# entities in the working drawings (measured on SCD-001: paper-space Text on this layer at
+# (768,72)/(753,66), nothing on that layer in model space), so they print at a fixed sheet position.
+# Emitted in paper space after layout.set, below. The layer is created here so it exists for them.
 Emit-Layer 'Preliminary Not For Construction'
-$lines.Add('mtext {"at":[768,72],"text":"PRELIMINARY","height":4,"style":"Romans"}')
-$lines.Add('mtext {"at":[753,66],"text":"NOT FOR CONSTRUCTION","height":4,"style":"Romans"}')
 
 $carried = 0
 foreach ($e in $ents.entities) {
@@ -305,6 +307,15 @@ if ($tplLayout) {
 if ($tplLayout) {
     $lines.Add('layout.set {"name":' + (ConvertTo-JsonStringValue -Value $tplLayout) + '}')
 }
+
+# Paper-space draft stamps, matching the working drawings' space, entity type and text style (see
+# the note at the Emit-Layer above). cadcraft draws into the CURRENT space and takes the CURRENT
+# text style, so layout and Romans are set current first.
+$lines.Add('layer.current {"name":"Preliminary Not For Construction"}')
+$lines.Add('style {"name":"Romans"}')
+$lines.Add('text {"at":[768,72],"text":"PRELIMINARY","height":4}')
+$lines.Add('text {"at":[753,66],"text":"NOT FOR CONSTRUCTION","height":4}')
+
 if ($tplExtraVpHandles.Count -gt 0) {
     $hjson = ($tplExtraVpHandles | ForEach-Object { ConvertTo-JsonStringValue -Value $_ }) -join ','
     $lines.Add('erase {"handles":[' + $hjson + ']}')

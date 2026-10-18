@@ -275,10 +275,14 @@ function Emit-Layer {
         $script:curLayer = $Name
     }
 }
-# The PRELIMINARY / NOT FOR CONSTRUCTION stamps live on their own layer.
+# The PRELIMINARY / NOT FOR CONSTRUCTION stamps live on their own layer. They are PAPER-space
+# entities in the working drawings (measured on SCD-001: source has them as paper-space Text on
+# layer "Preliminary Not For Construction" at (768,72)/(753,66), and nothing on that layer in model
+# space), so they print at a fixed sheet position whatever the content viewport shows. Emitting them
+# as model-space MText instead put them inside the content window, where the viewport scales them --
+# so they are emitted in paper space below, after layout.set. The layer is created here (model space
+# is current) so it exists for the paper-space text to land on.
 Emit-Layer 'Preliminary Not For Construction'
-$lines.Add('mtext {"at":[768,72],"text":"PRELIMINARY","height":4,"style":"Romans"}')
-$lines.Add('mtext {"at":[753,66],"text":"NOT FOR CONSTRUCTION","height":4,"style":"Romans"}')
 
 # M4-C3: the library TERMINAL block defines a TERM_NO attribute. In the source the terminal number
 # is a numeric MText drawn at the terminal's own position, so we move it into the block's TERM_NO
@@ -438,6 +442,16 @@ if ($name -match 'GAD-001') {
 if ($tplLayout) {
     $lines.Add('layout.set {"name":' + (ConvertTo-JsonStringValue -Value $tplLayout) + '}')
 }
+
+# Paper-space draft stamps, matching the working drawings' space, entity type and text style (see
+# the note at the Emit-Layer above). cadcraft draws into the CURRENT space, so these land in paper
+# space here; and its text command takes the CURRENT style (a "style" param is ignored), so Romans
+# is made current first. Same coordinates and height as the source's paper-space Text entities.
+$lines.Add('layer.current {"name":"Preliminary Not For Construction"}')
+$lines.Add('style {"name":"Romans"}')
+$lines.Add('text {"at":[768,72],"text":"PRELIMINARY","height":4}')
+$lines.Add('text {"at":[753,66],"text":"NOT FOR CONSTRUCTION","height":4}')
+
 if ($tplExtraVpHandles.Count -gt 0) {
     $hjson = ($tplExtraVpHandles | ForEach-Object { ConvertTo-JsonStringValue -Value $_ }) -join ','
     $lines.Add('erase {"handles":[' + $hjson + ']}')

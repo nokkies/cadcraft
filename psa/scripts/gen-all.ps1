@@ -144,6 +144,13 @@ $f7Last = (($f7 -split "`r?`n" | Where-Object { $_ -match '\S' } | Select-Object
 if ($LASTEXITCODE -ne 0) { Write-Host "[check-f7] FAIL  $f7Last"; $fail = 1 }
 else { Write-Host "[check-f7] PASS  $f7Last" }
 
+# M4-C20: the draft stamps are paper-space Text like the working drawings (not model-space MText,
+# which the content viewport would scale instead of printing at a fixed sheet position).
+$f8 = (& pwsh -NoProfile -File (Join-Path $s 'check-f8.ps1') 2>&1 | Out-String)
+$f8Last = (($f8 -split "`r?`n" | Where-Object { $_ -match '\S' } | Select-Object -Last 1))
+if ($LASTEXITCODE -ne 0) { Write-Host "[check-f8] FAIL  $f8Last"; $fail = 1 }
+else { Write-Host "[check-f8] PASS  $f8Last" }
+
 if ($fail -eq 0) {
     Write-Host 'PASS M4 pipeline (all twelve sheets generated; every check green; SCD-002 TX1 is the known D8 question)'
     exit 0
