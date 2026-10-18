@@ -35,6 +35,20 @@ Nothing to fix in the drawings themselves — this is a cadcraft rendering limit
 Written up for upstream as `psa/pr/shx-font-width.md` (build 0.030), with the code references and a
 measured advance-width number.
 
+**Status correction (build 0.113).** Two numbers in this entry are stale and were superseded by later
+measurements, and the entry survived only because nothing re-read it after the fixes landed.
+
+* The substitution is now **controlled**: `TextFont::resolve` consults `FONTALT` and renders an unfound SHX
+  in a findable face, driven by `CADCRAFT_FONTALT`. The scripts set `CADCRAFT_FONTALT=arial.ttf`, so
+  substituted text is Arial, not the raw stroke font.
+* The advance-width claim in `psa/pr/shx-font-width.md` (a "~0.6 em" figure) was **withdrawn at build
+  0.099** after measuring it: every `.shx` style renders identically because they all fall through to the
+  same stroke font, and 10 A's at height 10 measure **90.667** units, i.e. an advance of 0.9333 em, not 0.6.
+
+What remains true, and is the actual reason this entry exists: cadcraft still cannot parse SHX, so glyph
+*shapes* and advance widths are cadcraft's own and differ from AutoCAD's. The height is right; the widths
+drift. The entry stays open on that basis, not on the withdrawn number.
+
 **Measured confirmation (build 0.074).** Reinach reported the regenerated sheets "look worse than the
 originals" (round terminals, no border change). Measured the DWG data against the source working
 drawing on SCD-001: the 15 terminal circles on layer 3C are identical in count, radius (2.5) and
@@ -73,21 +87,48 @@ plotted page, which is the behaviour this entry said cadcraft could not do.
 1. **The empty plots were a generation bug, and it was fixed at build 0.065** — the template's content
    viewport pointed at empty space, so sheets plotted border and title block with nothing in the drawing
    area. That is the part build 0.065 already corrected.
-2. **The detail viewports are now erased deliberately**, at build 0.066, to fix ghosting: cadcraft's
-   `saveas` renumbers viewport ids and promotes one of them into the model-window list, which made
-   content plot twice. So a *generated* sheet has two viewports where the source has four, and its plot
-   legitimately lacks the detail window. That is a generation choice with a recorded reason, not a
-   renderer failure.
+2. **The detail viewports were erased, at build 0.066, to fix ghosting** — cadcraft's `saveas` renumbered
+   viewport ids and promoted one of them into the model-window list, which made content plot twice. So a
+   *generated* sheet had two viewports where the source has four, and its plot lacked the detail window.
+   **That generation choice was reversed at build 0.110 and the erase is gone.** It was not the right
+   trade: measured by taking a source sheet and erasing only 41D5 through cadcraft — identical content,
+   one entity deleted — plotted ink fell from 11,376 to 6,887 on SCD-003 and 15,300 to 8,817 on SCD-001.
+   The erase was deleting a displayed viewport holding a third of the sheet, and it accounted for the whole
+   "generated plots at 0.6 of the source" gap.
 
-**The real upstream defect, still open, is narrower and different:** `saveas` renumbers viewport ids and
-promotes a paper-space viewport into the model-space window list. That is what forced the 0.066 erase.
-It is recorded in `psa/pr/multi-viewport-plot.md`; that note should be read as the id-promotion defect,
-not as evidence that compositing is broken.
+**The real upstream defect was the id-promotion one, and it is FIXED locally at build 0.105.** `saveas`
+renumbered viewport ids and promoted a paper-space viewport into the model-space window list; that is what
+forced the 0.066 erase. The fix carries the sheet role in CADCraft xdata across a DWG save, verified four
+ways including a test that fails if the marker is dropped. It is a candidate upstream PR.
+`psa/pr/multi-viewport-plot.md` is the full account, including the two corrections (0.108, 0.109) that this
+entry's earlier revisions needed.
 
 **Also recorded here as a limitation hit while testing:** `mview` does not accept `handles` in
-script-file JSON ("no viewport given"), and it cannot help here regardless — the detail viewports were
-*erased*, not turned off, so there is nothing for `mview on` to restore. Restoring them would mean
-re-creating the viewport entities, which is generation work, not a renderer gap.
+script-file JSON ("no viewport given"), and it could not have helped regardless — the detail viewports were
+*erased*, not turned off, so there was nothing for `mview on` to restore. Moot now that the erase is gone.
+
+### M5 — TrueType attribute text inside a scaled block renders larger than the same text at scale 1 (build 0.111)
+
+Discovered while explaining why generated sheets carried more ink than their sources. The `_TagCircle`
+balloon block is inserted 25 times at scale 6.0 on GAD-001 with identical block definitions and identical
+reference scales on both sides; its text uses style `ISOCP` → `tahoma.ttf`. Balloons measure **9.98mm in the
+source plot and 12.51mm in the generated one**, ratio 1.253, uniform across all 25.
+
+Across all twelve sheets exactly one mismatches, and it is exactly the one whose balloons use a TrueType
+style: GAD-001 renders 2.5 → **15.0**, while the eleven sheets using `isocp2.shx` reproduce 2.0, 3.0 and 5.0
+exactly. A synthetic test on the template's empty model space confirms the mechanism — text at height 2.5
+drawn directly measures 2.50, the same text inside `_TagCircle` at scale 6 measures **15.00**. So the TrueType
+path multiplies the enclosing `INSERT` scale into an attribute height where the stroke path does not.
+
+The claim is bounded: what is measured is that identical drawing data yields 1.25× larger balloons and that
+the effect tracks the TrueType style rather than the geometry. What is **not** claimed is that AutoCAD's
+output settles which size is correct — cadcraft cannot read SHX, so the source's own `isocp2` balloons are
+themselves stroke-substituted. What holds is the internal inconsistency: two paths that should agree don't.
+
+Written up as `psa/pr/true-type-attribute-scale.md`. Guarded in-repo by `check-textheights.ps1` (M4-C22),
+which fails GAD-001 and passes the other eleven; that failure is a named accepted exception in `gen-all.ps1`
+because it is a renderer defect, not something the generator can set differently.
+
 
 
 
