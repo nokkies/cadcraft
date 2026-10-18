@@ -436,9 +436,13 @@ if ($name -match 'GAD-001') {
 # generated sheet plotted with border + title block but no content. viewHeight sets the vertical
 # extent; the horizontal follows the window's aspect, so fit the larger of content height and
 # (content width / aspect), with a margin. The viewport is unlocked first so the view can change.
-# M4-C17: first switch to the layout and erase the extra model windows (the duplicate sheet viewport
-# and the empty detail window) so only the content window remains -- otherwise the saved sheet draws
-# the content two or three times (the "duplicated" look).
+# M4-C17 (revised by build 0.106): this used to erase the extra model windows -- the duplicate sheet
+# viewport and the empty detail window -- because cadcraft's saveas renumbered viewport ids and promoted
+# the second sheet window into the model list, drawing the content two or three times (the "duplicated"
+# look the user reported). Build 0.105 fixes that in cadcraft: the sheet role is now carried in CADCraft
+# xdata across a DWG save, so a second sheet window keeps id=1 and is not drawn as a model window. The
+# erase is therefore gone, and the detail window survives -- which is what restores the small zoom
+# windows the working drawings have and generated plots lacked.
 if ($tplLayout) {
     $lines.Add('layout.set {"name":' + (ConvertTo-JsonStringValue -Value $tplLayout) + '}')
 }
@@ -452,10 +456,6 @@ $lines.Add('style {"name":"Romans"}')
 $lines.Add('text {"at":[768,72],"text":"PRELIMINARY","height":4}')
 $lines.Add('text {"at":[753,66],"text":"NOT FOR CONSTRUCTION","height":4}')
 
-if ($tplExtraVpHandles.Count -gt 0) {
-    $hjson = ($tplExtraVpHandles | ForEach-Object { ConvertTo-JsonStringValue -Value $_ }) -join ','
-    $lines.Add('erase {"handles":[' + $hjson + ']}')
-}
 if ($tplVpHandle -and $hasExtents) {
     $cx = ($minX + $maxX) / 2.0
     $cy = ($minY + $maxY) / 2.0

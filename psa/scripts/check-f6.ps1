@@ -39,7 +39,11 @@ if (-not (Test-Path -LiteralPath $OutDir)) { throw "out dir not found: $OutDir" 
 $runStep = Join-Path $PSScriptRoot 'run-step.ps1'
 if (-not (Test-Path -LiteralPath $runStep)) { throw 'run-step.ps1 not found next to this script' }
 
-$dwgs = Get-ChildItem -LiteralPath $OutDir -Filter '*.dwg' | Sort-Object Name
+# Wrapped in @(): with a single sheet, Get-ChildItem | Sort-Object returns a bare FileInfo, and
+# Set-StrictMode -Version 3 rejects .Count on it. That made this check impossible to run against a
+# one-sheet directory, which is how a negative test has to be driven -- found when trying to prove the
+# duplicate-viewport rule bites.
+$dwgs = @(Get-ChildItem -LiteralPath $OutDir -Filter '*.dwg' | Sort-Object Name)
 if ($dwgs.Count -eq 0) { throw "no sheets in $OutDir" }
 
 function Get-FirstLayout { param([string]$File)
@@ -92,12 +96,32 @@ foreach ($dwg in $dwgs) {
     if ($null -eq $best) { Write-Host "FAIL $($dwg.Name) no content viewport (id>=2)"; $failCount++; continue }
     $vcx = [double]$best.viewCenter.x; $vcy = [double]$best.viewCenter.y; $vh = [double]$best.viewHeight
 
-    # M4-C17: exactly one model-space window (id>=2). cadcraft's saveas can promote a second sheet
-    # viewport into the model list, so the layout ends up with two or three model windows all drawing
-    # the same content -> the sheet looks duplicated (ghosting). More than one model window FAILs.
-    $modelVpCount = @($vo.entities | Where-Object { $g = $_.geometry; ($g.PSObject.Properties.Name -contains 'id') -and ([int]$g.id -ge 2) }).Count
-    if ($modelVpCount -ne 1) {
-        Write-Host "FAIL $($dwg.Name) ($modelVpCount model-space viewports (id>=2), expected exactly 1 -- duplicate viewports ghost the content)"
+    # M4-C17 (revised by build 0.106): this used to require EXACTLY ONE model-space window (id>=2),
+    # which was written to pass the generator's workaround rather than the target. The working drawings
+    # have TWO (measured on the source: a content window and a detail window), and the workaround was
+    # erasing the second one -- which is why generated plots lacked the detail windows the source has.
+    # Build 0.105 fixed the cadcraft defect that forced the erase, so the check now asserts the property
+    # that actually matters: no two model windows show the SAME region. Ghosting is duplication, not
+    # multiplicity, and the source proves two distinct windows are correct.
+    $modelVps = @(@($vo.entities | Where-Object { $g = $_.geometry; ($g.PSObject.Properties.Name -contains 'id') -and ([int]$g.id -ge 2) }))
+    if ($modelVps.Count -lt 1) {
+        Write-Host "FAIL $($dwg.Name) (no model-space window at all, nothing plots)"
+        $failCount++
+        continue
+    }
+    $dupe = $null
+    for ($i = 0; $i -lt $modelVps.Count; $i++) {
+        for ($j = $i + 1; $j -lt $modelVps.Count; $j++) {
+            $a = $modelVps[$i].geometry; $b = $modelVps[$j].geometry
+            $sameCentre = ([Math]::Abs([double]$a.viewCenter.x - [double]$b.viewCenter.x) -lt 1.0) -and
+                          ([Math]::Abs([double]$a.viewCenter.y - [double]$b.viewCenter.y) -lt 1.0)
+            $sameZoom = ([double]$a.viewHeight -gt 0) -and ([Math]::Abs([double]$a.viewHeight - [double]$b.viewHeight) / [double]$a.viewHeight -lt 0.02)
+            if ($sameCentre -and $sameZoom) { $dupe = "$($modelVps[$i].handle)/$($modelVps[$j].handle)"; break }
+        }
+        if ($dupe) { break }
+    }
+    if ($dupe) {
+        Write-Host "FAIL $($dwg.Name) (two model windows show the same region ($dupe) -- duplicate viewports ghost the content)"
         $failCount++
         continue
     }
