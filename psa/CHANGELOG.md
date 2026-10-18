@@ -2,6 +2,11 @@
 
 One entry per build, newest first. Format: see `PLAN.md`, "Build numbers and the changelog".
 
+## 0.069  2026-10-18  M4-C14 follow-up: check-ink.ps1 was never committed (broken checkout)
+Changed: an audit of every script gen-all.ps1 calls found one gap -- check-ink.ps1 (the M4-C14 monochrome/ink check added in build 0.064) exists on disk but was never `git add`ed, so it is untracked and absent from the fusion branch. gen-all.ps1 runs it as a required check, so a fresh clone of fusion would fail at the check-ink stage (the script file is not there). No other referenced script is untracked (all 19 others are tracked). Commit the script so the pipeline is complete in the repo, not just on this machine.
+Check:   `git ls-files psa/scripts/check-ink.ps1` now returns the path (was empty); the full psa/scripts audit shows every gen-all-referenced script tracked. The script itself still PASSes (all 12 generated plots monochrome, non-empty).
+Files:   psa/scripts/check-ink.ps1, psa/CHANGELOG.md, psa/VERSION
+
 ## 0.068  2026-10-18  D3 note relocated off the earth-bar assembly (it collided with balloon 12)
 Changed: the D3 rail-cut-lengths note the generator adds to the GA sheet was placed at a fixed (40,120), described in the comment as "lower-left of the GA interior" -- but that is exactly where the earth-bar assembly sits. Measured the collision: assembly lines at (40,100) and (130,180) and the EARTH BAR label at (190,192) all fall within reach of the note, so the note printed over the assembly and balloon 12's leader (the "text/line collision" Reinach saw on GAD-001). The source has no such standalone note (its only DIN RAIL text is inside the NOTES block at (1360,980)), so this was generator-added clutter, not source data. Fix: drop the note into the empty upper-right column below the NOTES block -- measured 0 entities in x>1300, 650<y<960 -- now at (1360,720).
 Check:   after regenerating GAD-001 the note sits at (1360,720) with 0 entities within 120 units (was overlapping the assembly). rail-lengths.ps1 still PASS (it checks the computed rail values, not the note position). Full gen-all: exit 0, check-all 0 FAIL, rail-lengths PASS, check-f6 PASS, all twelve green.
