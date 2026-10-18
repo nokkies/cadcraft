@@ -105,7 +105,37 @@ distinction has nowhere to live across a DWG save. Two consequences for whoever 
    one. Deriving from geometry is attractive because it needs no format extension and also works on files
    written by other applications.
 
+## FIXED in build 0.105 — the sheet role is stored, not derived
+
+The xdata route (point 2 above, "the only known-correct route because it does not guess") is implemented
+and shipped. Summary of the change:
+
+- `crates/io/src/dxf_ext.rs` — new `SHEET_VIEW` marker (`"SHEETVIEW"`) and `is_sheet_view()`. Deliberately
+  a *separate* marker from `PAPER_VIEW`: that one marks a viewport the writer *added*, which the reader
+  drops as implicit. Reusing it would have made the reader drop real sheet viewports.
+- `crates/io/src/dxf_write.rs` — a VIEWPORT with `id == 1` is stamped with the marker, in the same CADCraft
+  xdata run that already carries VPFROZEN/VPCOLORS.
+- `crates/io/src/dxf_read.rs` — a marked viewport is read with `id` forced to 1, overriding the renumbered
+  group 69. The marker is authoritative because it records intent, which the renumbered id does not.
+
+Measured on the untouched template, saving with **no erase at all**: all four viewports survive and exactly
+two draw model content (`30F5`, `41D5`), with `41D1` back at `id=1`. Before the fix it was three — the
+promoted `41D1` was the ghosting. So the generator no longer needs to erase detail viewports.
+
+Verified three ways, because round 43 showed that CI alone is not enough:
+1. `cargo xtask ci` — all six steps.
+2. Three regression tests that assert the **drawing's** behaviour, not the marker's:
+   `sheet_viewport_keeps_its_id_through_dwg`, `a_saved_sheet_keeps_a_model_window`, and
+   `a_1to1_content_window_is_not_reclassified_as_the_sheet` — the last one is the case that broke the
+   round-43 attempt, pinned as a test so it cannot come back.
+3. **The tests were proved to bite**: with the reader's marker check neutered,
+   `sheet_viewport_keeps_its_id_through_dwg` failed with `got [1, 2, 3]` — the promotion bug, exactly.
+4. The PSA gate: all 26 checks green on all twelve sheets.
+
+The `1:1` content window keeps `id=2` because the role is stored, not inferred — which is the whole point.
+
 ## The geometry derivation does NOT work — tried and reverted (build 0.104)
+
 
 The suggestion in point 2 above was implemented, tested, and **reverted**. It is recorded here so the next
 reader does not spend a build rediscovering why.

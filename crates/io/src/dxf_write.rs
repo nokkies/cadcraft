@@ -1075,8 +1075,18 @@ fn entity(w: &mut W, d: &Drawing, e: &Entity, owner: &str, paper: bool, cx: &Ctx
                 }
             }
             // One CADCraft xdata group holds both lists: readers stop at the first group of an app.
-            if !v.frozen_layers.is_empty() || !v.layer_colors.is_empty() {
+            // A viewport that already exists and is the paper-space window (id 1) is marked first, so
+            // the role survives a DWG save: DWG stores no viewport id, so the bridge renumbers by
+            // record order and a second sheet window would otherwise return as id 2 or 3 and be drawn
+            // as a model window. The marker is only a role stamp; the viewport itself is kept.
+            let mark_sheet = v.id == 1;
+            if mark_sheet || !v.frozen_layers.is_empty() || !v.layer_colors.is_empty() {
                 w.s(1001, dxf_ext::APP);
+                if mark_sheet {
+                    w.s(1000, dxf_ext::SHEET_VIEW);
+                    w.s(1002, "{");
+                    w.s(1002, "}");
+                }
                 if !v.frozen_layers.is_empty() {
                     w.xdata(dxf_ext::frozen_xdata(&v.frozen_layers));
                 }
