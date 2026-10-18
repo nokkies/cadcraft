@@ -89,9 +89,40 @@ common case and is what `layout_mtext_entity` does.
 
 `ATTRIB` and `ATTDEF` share `place_text_entity`, so they are fixed by the same change.
 
+## This fix is implemented and verified
+
+The block above is in `crates/render/src/lib.rs` in this fork, with tests in
+`crates/render/tests/text_style_width_factor.rs`. Five tests:
+
+| test | before | after |
+|---|---|---|
+| `text_honours_the_style_width_factor` | **FAIL** ratio 1 (90.67 vs 90.67) | pass |
+| `attributes_honour_the_style_width_factor` | **FAIL** ratio 1 | pass |
+| `mtext_already_honours_the_style_width_factor` | pass | pass |
+| `an_explicit_entity_width_factor_still_wins` | pass | pass |
+| `a_missing_or_bogus_style_factor_falls_back_to_one` | pass | pass |
+
+The MTEXT test is deliberately included as the **reference**: it passed before the change, which is what
+proves the two failures were the bug rather than a wrong expectation. The fallback test covers `0.0`,
+`NaN` and an absent style, so the guard cannot collapse text to zero width.
+
+`cargo xtask ci` passes all six steps (fmt, clippy, test, assets, layers, wasm).
+
+Verified in the rebuilt release binary, not just the unit test — the same CLI measurement as above:
+
+| entity | wf 1.0 | wf 0.5 | ratio |
+|---|---:|---:|---:|
+| `TEXT` before | 947 px | 947 px | 1.000 |
+| `TEXT` after | 947 px | 474 px | **0.501** |
+| `MTEXT` | 947 px | 474 px | 0.501 |
+
+TEXT now matches MTEXT exactly.
+
 ## Impact on our drawings
 
-None, as measured. The sheets carry their model-space text as **MTEXT** (SCD-001: 97 MText, 0 TEXT), and
-MTEXT already honours the factor — including the source's `Romans` style at `widthFactor 0.9`, which is
-why our generated text spacing is right. This is reported because it is a real parity bug that would bite
-any drawing using single-line TEXT with a styled width factor, not because it affects these sheets.
+None, as measured — before or after. The sheets carry their model-space text as **MTEXT** (SCD-001: 97
+MText, 0 TEXT), and MTEXT already honoured the factor, which is why our generated text spacing was
+already right. After the fix all twelve sheets still regenerate green and the text-style and colour
+audits still pass. This is reported and fixed because it is a real parity bug that would bite any drawing
+using single-line TEXT with a styled width factor, not because it affected these sheets.
+
