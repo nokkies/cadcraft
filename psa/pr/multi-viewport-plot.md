@@ -105,6 +105,45 @@ distinction has nowhere to live across a DWG save. Two consequences for whoever 
    one. Deriving from geometry is attractive because it needs no format extension and also works on files
    written by other applications.
 
+## The geometry derivation does NOT work — tried and reverted (build 0.104)
+
+The suggestion in point 2 above was implemented, tested, and **reverted**. It is recorded here so the next
+reader does not spend a build rediscovering why.
+
+**What was tried.** In `dxf_read.rs`, derive the role instead of trusting group 69: a viewport whose
+`viewCenter == center` and `viewHeight == height` is a sheet window, so give it id 1.
+
+**What looked right.** On the untouched template it classified all four viewports correctly, and the DWG
+round-trip then preserved the roles: `1021`=1, `30F5`=2, `41D1`=**1** (was 3), `41D5`=4. Model windows
+drawing model content dropped from 3 to 2, which is the ghosting fix. `cargo xtask ci` passed all six
+steps, including three new regression tests (`sheet_viewport_keeps_its_id_through_dwg`,
+`model_viewport_is_not_mistaken_for_the_sheet`, `sheet_viewport_id_derivation_survives_float_noise`).
+
+**Why it is wrong anyway.** The predicate is not a valid definition of "sheet window". A content viewport
+framed at 1:1 with `viewCenter == center` and `viewHeight == height` satisfies exactly the same condition —
+and that is not a hypothetical, it is what the generated sheets do: the generators reframe the content
+window 30F5 to precisely that framing (the working drawings' own convention, measured as (420,322) vh 524).
+So the derivation reclassifies the content window as a sheet window, gives it `id=1`, and the sheet is left
+with **no model window at all**.
+
+The PSA gate caught it immediately: `check-f2` FAIL (11 sheets plot empty), `check-f5` FAIL (11 sheets with
+duplicate or empty plots), `check-f6` FAIL (11 sheets, content viewport does not frame its content). Reverted;
+gate green again.
+
+**The real lesson for whoever fixes this.** `viewCenter == center && viewHeight == height` distinguishes a
+sheet window from a *zoomed* model window, but not from a **1:1 model window**, and 1:1 content windows are
+normal on these sheets. A correct derivation needs something the geometry alone does not give — e.g. that the
+viewport's view covers the whole sheet (`width`/`height` equal to the sheet's paper size), or the layout's
+own first-viewport convention, or storing the role explicitly the way `paper_view` already does for DXF via
+CADCraft xdata. The xdata route is the only one of the three that is known-correct, because it does not
+guess.
+
+**And the meta-lesson.** Three new unit tests passed, and `cargo xtask ci` passed all six steps, while the
+change broke eleven sheets. The unit tests asserted the predicate's behaviour, not the drawing's. The gate
+that caught it was the one that measures real plots. A change can be fully green in the crate's own test
+suite and still be wrong; the end-to-end check is not optional decoration.
+
+
 
 ## Why it matters for the PSA project
 
