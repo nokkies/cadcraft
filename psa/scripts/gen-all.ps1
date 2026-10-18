@@ -161,7 +161,12 @@ else { Write-Host "[check-f8] PASS  $f8Last" }
 #   audit-linetypes   the linetype table, header variables, and that the renderer dashes correctly
 #   audit-colours     rendered stroke geometry and colours, through one fixed window
 $audits = @('audit-layers', 'audit-sheet-space', 'audit-textstyles', 'audit-blocks', 'audit-linetypes', 'audit-colours')
-foreach ($a in $audits) {
+# check-detail is a check, not an audit: it measures what a detail viewport SHOWS, which no other check
+# does. It exists because builds 0.106/0.107 restored the template's detail window and the whole gate went
+# green while every plot carried roughly twice the source's ink -- every other check verified that a window
+# exists and how many there are, none looked at the ink inside one.
+$checks = @('check-detail')
+foreach ($a in ($checks + $audits)) {
     $out = (& pwsh -NoProfile -File (Join-Path $s ($a + '.ps1')) 2>&1 | Out-String)
     $last = (($out -split "`r?`n" | Where-Object { $_ -match '\S' } | Select-Object -Last 1))
     if ($LASTEXITCODE -ne 0) { Write-Host "[$a] FAIL  $last"; $fail = 1 }

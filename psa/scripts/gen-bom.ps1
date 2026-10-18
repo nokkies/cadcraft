@@ -316,10 +316,15 @@ $lines.Add('style {"name":"Romans"}')
 $lines.Add('text {"at":[768,72],"text":"PRELIMINARY","height":4}')
 $lines.Add('text {"at":[753,66],"text":"NOT FOR CONSTRUCTION","height":4}')
 
-# Build 0.106: the extra viewports used to be erased here because cadcraft's saveas renumbered viewport
-# ids and promoted the second sheet window into the model list, drawing the content two or three times.
-# Build 0.105 carries the sheet role in CADCraft xdata across a DWG save, so that no longer happens and
-# the erase is gone -- which is what lets the detail window survive, as it does on the working drawings.
+# M4-C17 (restored by build 0.108): the extra viewports are erased. Build 0.105 fixed the id-renumbering
+# defect, but the template's detail window is aimed at model coordinates our content happens to overlap
+# (202 of 218 positioned entities fall inside its view rect), so keeping it renders the whole main drawing
+# at 1/20 scale inside the inset. See the full note in gen-scd.ps1. Keep the window only once a generator
+# aims it at a real detail region.
+if ($tplExtraVpHandles.Count -gt 0) {
+    $hjson = ($tplExtraVpHandles | ForEach-Object { ConvertTo-JsonStringValue -Value $_ }) -join ','
+    $lines.Add('erase {"handles":[' + $hjson + ']}')
+}
 if ($tplVpHandle -and $hasExtents) {
     $cx = ($minX + $maxX) / 2.0
     $cy = ($minY + $maxY) / 2.0

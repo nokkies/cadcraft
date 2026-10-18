@@ -134,6 +134,42 @@ Verified three ways, because round 43 showed that CI alone is not enough:
 
 The `1:1` content window keeps `id=2` because the role is stored, not inferred — which is the whole point.
 
+## Correction (build 0.108): removing the erase was premature — the detail window has a second, separate problem
+
+Builds 0.106/0.107 said "the generator no longer needs to erase detail viewports". **That was wrong**, and
+the claim was made from the wrong evidence: the gate passing, and a viewport count matching the source.
+Nobody plotted it and counted the ink.
+
+Measured on the regenerated GAD plot, grid-diffed against the source (7×7 cells of path items): the
+generated sheet carries roughly **twice** the source's ink almost everywhere, including cells that should be
+empty — row 5 col 2: source 3,081 vs generated 4,850; row 5 col 3: 812 vs 2,405; row 4 col 3: 472 vs 1,868.
+A vision read of the same plot independently reported a "dark, blurry rectangular artifact" beside the inset.
+
+The cause, measured: **the template's detail window 41D5 is inherited verbatim and points at model
+coordinates that have nothing to do with our drawing.** Its view rect is `viewCenter 875,1629`,
+`viewHeight 3188` — i.e. model x −1225..2976, y 35..3223. Our generated content spans x −85..1360,
+y −55..1085, and **202 of 218 positioned entities fall inside that rect.** So the inset shows the entire
+main drawing at 1/20 scale. That is the "looks duplicated" report from build 0.065, and it is the *real*
+reason the erase existed.
+
+So there were **two independent defects**, and 0.105 fixed only one:
+
+1. **The id renumbering** (fixed in 0.105, verified, still correct).
+2. **The template's detail window is aimed at empty template space**, which our content happens to overlap.
+   The erase masked this by deleting the window.
+
+The correct end state is not "keep the window as inherited" and not "delete it". It is **keep it and aim it
+at a real detail region of our own content** — which is what the source sheet does: its 41D5 shows a genuine
+detail at 1/20, and its content window 30F5 sits at `viewCenter 780,520 vh 1572` (1/3), while ours is at
+`638,515 vh 1254` (1/2). Until a generator chooses a detail region deliberately, the window must be erased,
+and the erase is a legitimate choice rather than a workaround.
+
+**The lesson, and it is the same one as round 43 in a different costume:** a viewport count matching the
+source is a structural check, not a visual one. The gate verified *that the window exists*; nothing
+verified *what it shows*. The fix is to add a check that measures the plotted ink of a detail window against
+a control region of the same size, so an inset showing the whole drawing cannot pass.
+
+
 ## The geometry derivation does NOT work — tried and reverted (build 0.104)
 
 

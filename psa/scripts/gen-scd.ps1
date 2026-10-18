@@ -436,13 +436,23 @@ if ($name -match 'GAD-001') {
 # generated sheet plotted with border + title block but no content. viewHeight sets the vertical
 # extent; the horizontal follows the window's aspect, so fit the larger of content height and
 # (content width / aspect), with a margin. The viewport is unlocked first so the view can change.
-# M4-C17 (revised by build 0.106): this used to erase the extra model windows -- the duplicate sheet
-# viewport and the empty detail window -- because cadcraft's saveas renumbered viewport ids and promoted
-# the second sheet window into the model list, drawing the content two or three times (the "duplicated"
-# look the user reported). Build 0.105 fixes that in cadcraft: the sheet role is now carried in CADCraft
-# xdata across a DWG save, so a second sheet window keeps id=1 and is not drawn as a model window. The
-# erase is therefore gone, and the detail window survives -- which is what restores the small zoom
-# windows the working drawings have and generated plots lacked.
+# M4-C17 (restored by build 0.108): erase the extra model windows -- the duplicate sheet viewport and the
+# empty detail window -- so only the content window remains.
+#
+# Build 0.105 fixed one real defect: cadcraft's saveas renumbered viewport ids and promoted the second
+# sheet window into the model list, drawing the content two or three times. That fix stands.
+#
+# Builds 0.106/0.107 concluded from that that the erase was no longer needed. It is, for a SECOND and
+# independent reason that the erase had been masking: the template's detail window 41D5 is inherited
+# verbatim and is aimed at model coordinates with nothing to do with our drawing (viewCenter 875,1629,
+# viewHeight 3188, i.e. model x -1225..2976 y 35..3223), while our generated content spans x -85..1360
+# y -55..1085 -- 202 of 218 positioned entities fall inside it. So the inset renders the entire main
+# drawing at 1/20 scale, which is the "looks duplicated" report from build 0.065. Measured: the
+# regenerated plot carries about twice the source's ink almost everywhere (grid row5 col2 3081 vs 4850,
+# row5 col3 812 vs 2405).
+#
+# The right end state is to keep the window and AIM it at a real detail region of our own content, the way
+# the source does. Until a generator chooses that region deliberately, the window has to go.
 if ($tplLayout) {
     $lines.Add('layout.set {"name":' + (ConvertTo-JsonStringValue -Value $tplLayout) + '}')
 }
@@ -456,6 +466,10 @@ $lines.Add('style {"name":"Romans"}')
 $lines.Add('text {"at":[768,72],"text":"PRELIMINARY","height":4}')
 $lines.Add('text {"at":[753,66],"text":"NOT FOR CONSTRUCTION","height":4}')
 
+if ($tplExtraVpHandles.Count -gt 0) {
+    $hjson = ($tplExtraVpHandles | ForEach-Object { ConvertTo-JsonStringValue -Value $_ }) -join ','
+    $lines.Add('erase {"handles":[' + $hjson + ']}')
+}
 if ($tplVpHandle -and $hasExtents) {
     $cx = ($minX + $maxX) / 2.0
     $cy = ($minY + $maxY) / 2.0
