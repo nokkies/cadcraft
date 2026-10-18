@@ -41,7 +41,85 @@ fn read(bytes: &[u8], _name: &str) -> Result<Drawing, String> {
 }
 
 fn hooks() {
-    set_io(IoHooks { read, write: |_, _| Err("no writer in this test".into()), plot: None });
+    // One hook pair for the whole file, dispatching on the path. `set_io` is process-GLOBAL, so if each test
+    // installs its own pair, whichever runs last wins for all of them and an earlier test reads its file
+    // through the wrong codec. That is not theoretical: adding a second codec here broke the first test on
+    // the very next run. A test whose file name carries ROUNDTRIP_MARKER gets the serialising codec below;
+    // every other file gets the original one.
+    set_io(IoHooks { read: dispatch_read, write: dispatch_write, plot: None });
+}
+
+/// Files handled by the WBLOCK round-trip codec rather than the simple one above.
+const ROUNDTRIP_MARKER: &str = "border-extract";
+
+fn dispatch_read(bytes: &[u8], name: &str) -> Result<Drawing, String> {
+    if name.contains(ROUNDTRIP_MARKER) { rt_read(bytes, name) } else { read(bytes, name) }
+}
+
+fn dispatch_write(d: &Drawing, path: &str) -> Result<Vec<u8>, String> {
+    if path.contains(ROUNDTRIP_MARKER) {
+        rt_write(d, path)
+    } else {
+        Ok(format!("{},{}", d.header.point("INSBASE").map(|p| p.x).unwrap_or(0.0), d.header.point("INSBASE").map(|p| p.y).unwrap_or(0.0))
+            .into_bytes())
+    }
+}
+
+/// The round-trip codec: "x,y" for $INSBASE, then "|Bname=ax,ay,bx,by" per block line and "|M=ax,ay,bx,by"
+/// per model-space line. Model space is where WBLOCK puts the extracted entities and what INSERT reads to
+/// define the target's block -- derived from the Drawing handed to the writer, never assumed.
+fn rt_write(d: &Drawing, _path: &str) -> Result<Vec<u8>, String> {
+    let p = d.header.point("INSBASE").unwrap_or_default();
+    let mut out = format!("{},{}", p.x, p.y);
+    for (name, blk) in d.blocks.iter() {
+        for e in blk.entities.iter() {
+            if let EntityKind::Line(l) = &e.kind {
+                out.push_str(&format!("|B{name}={},{},{},{}", l.a.x, l.a.y, l.b.x, l.b.y));
+            }
+        }
+    }
+    for e in d.model.iter() {
+        if let EntityKind::Line(l) = &e.kind {
+            out.push_str(&format!("|M={},{},{},{}", l.a.x, l.a.y, l.b.x, l.b.y));
+        }
+    }
+    Ok(out.into_bytes())
+}
+
+fn rt_read(bytes: &[u8], _name: &str) -> Result<Drawing, String> {
+    let text = String::from_utf8_lossy(bytes).to_string();
+    let mut bits = text.split('|');
+    let head = bits.next().ok_or("bad test file")?;
+    let (x, y) = head.split_once(',').ok_or("bad test file")?;
+    let (x, y): (f64, f64) = (x.parse().map_err(|_| "x")?, y.parse().map_err(|_| "y")?);
+    let mut d = Drawing::new_imperial();
+    d.header.set("INSBASE", HVal::Point(Vec3::new(x, y, 0.0)));
+    let mut next_handle = 0x700u64;
+    let mut block_ents: std::collections::BTreeMap<String, Vec<(f64, f64, f64, f64)>> = std::collections::BTreeMap::new();
+    let mut model_ents: Vec<(f64, f64, f64, f64)> = Vec::new();
+    for bit in bits.filter(|s| !s.is_empty()) {
+        let (tag, geom) = bit.split_once('=').ok_or("bad line")?;
+        let mut c = geom.split(',').map(|v| v.parse::<f64>().map_err(|_| "coord"));
+        let g = (c.next().unwrap()?, c.next().unwrap()?, c.next().unwrap()?, c.next().unwrap()?);
+        match tag.strip_prefix('B') {
+            Some(name) => block_ents.entry(name.to_string()).or_default().push(g),
+            None if tag == "M" => model_ents.push(g),
+            _ => return Err("bad tag".into()),
+        }
+    }
+    for (name, geoms) in block_ents {
+        let mut nb = Block::new(&name);
+        for (ax, ay, bx, by) in geoms {
+            nb.entities.push(Entity::new(Handle(next_handle), EntityKind::Line(Line { a: Vec3::new(ax, ay, 0.0), b: Vec3::new(bx, by, 0.0) })));
+            next_handle += 1;
+        }
+        d.blocks.insert(name.clone(), std::sync::Arc::new(nb));
+    }
+    for (ax, ay, bx, by) in model_ents {
+        d.model.push(Entity::new(Handle(next_handle), EntityKind::Line(Line { a: Vec3::new(ax, ay, 0.0), b: Vec3::new(bx, by, 0.0) })));
+        next_handle += 1;
+    }
+    Ok(d)
 }
 
 /// Write a test drawing file with $INSBASE `base`; returns its path.
@@ -173,4 +251,44 @@ fn exploded_json_insert_is_one_undo_step() {
         assert!(s.doc().unwrap().block("B").is_none(), "{params}");
         assert_eq!(lines(&s), vec![(0.0, 0.0, 10.0, 0.0)], "{params}");
     }
+}
+
+/// WBLOCK then INSERT: the round trip a drafter uses to move a block between drawings.
+///
+/// This is the pairing the two commands' own tests each miss. `wblock_base.rs` asserts what WBLOCK writes;
+/// this file asserts what INSERT reads. Neither looked at the two joined up, which is why build 0.121's
+/// WBLOCK fix had no test that could see its consequence -- and why a wrong conclusion about INSERT
+/// survived a build before being re-tested and withdrawn. Written as one test rather than split: `set_io`
+/// is process-global, so a second hook installed by another test in this file would replace this one under
+/// parallel execution.
+///
+/// The writer must SERIALISE, not summarise. An earlier version of this test wrote only "$INSBASE x,y",
+/// the same bytes `read` above expects, which throws away the block table the test is about -- so it passed
+/// against the buggy WBLOCK that leaked the parent's whole library. A test that cannot fail on the defect is
+/// not testing the defect.
+#[test]
+fn a_block_extracted_by_wblock_inserts_into_another_drawing() {
+    hooks();
+
+    // Source drawing: a block named BORDER, plus a library block that must NOT travel with the extract.
+    let mut src = Session::new();
+    let a = src.execute("line", &json!({ "points": [[0, 0], [30, 0]] })).unwrap()["handles"][0].as_str().unwrap().to_string();
+    src.execute("block", &json!({ "name": "BORDER", "base": [0, 0], "handles": [a], "keep": "retain" })).unwrap();
+    let b = src.execute("line", &json!({ "points": [[0, 0], [1, 0]] })).unwrap()["handles"][0].as_str().unwrap().to_string();
+    src.execute("block", &json!({ "name": "LIBRARY ONLY", "base": [0, 0], "handles": [b], "keep": "retain" })).unwrap();
+
+    let path = file("border-extract.dxf", "0,0");
+    src.execute("wblock", &json!({ "path": &path, "name": "BORDER" })).map_err(|e| format!("{e:?}")).unwrap();
+
+    // A DIFFERENT drawing, which knows nothing about BORDER, reads that file back as a block.
+    let mut dst = Session::new();
+    let r = dst.execute("insert", &json!({ "name": "BORDER", "file": &path, "at": [100, 100] })).map_err(|e| format!("{e:?}")).unwrap();
+    assert!(r["handle"].is_string(), "{r}");
+    assert!(inserts(&dst).iter().any(|i| i.0 == "BORDER" && i.1 == 100.0 && i.2 == 100.0), "the extracted block did not insert: {:?}", inserts(&dst));
+    let bl = dst.doc().unwrap().block("BORDER").cloned();
+    let bl = bl.expect("WBLOCK's output did not define a usable block");
+    assert!(!bl.entities.is_empty(), "the inserted block definition is empty");
+    // The parent's unrelated library block must not have arrived through the file.
+    assert!(dst.doc().unwrap().block("LIBRARY ONLY").is_none(), "WBLOCK leaked the parent's block table into the extract");
+    let _ = std::fs::remove_file(&path);
 }
