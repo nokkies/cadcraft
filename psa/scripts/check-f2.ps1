@@ -18,11 +18,18 @@
 param(
     [string]$OutDir,
     # A generated plot must exceed the empty baseline by at least this many bytes to count as content.
-    [int]$MinContentBytes = 5000
+    [int]$MinContentBytes = 5000,
+    [string]$FontAlt = 'arial.ttf'   # SHX text substitution for the plotted PDFs (see export-pdf.ps1)
 )
 
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
+
+if ([string]::IsNullOrWhiteSpace($FontAlt)) {
+    Remove-Item Env:\CADCRAFT_FONTALT -ErrorAction SilentlyContinue
+} else {
+    $env:CADCRAFT_FONTALT = $FontAlt
+}
 
 function Get-PSADrawingsRoot {
     foreach ($scope in 'Process', 'User', 'Machine') {
