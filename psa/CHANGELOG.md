@@ -2,6 +2,11 @@
 
 One entry per build, newest first. Format: see `PLAN.md`, "Build numbers and the changelog".
 
+## 0.070  2026-10-18  Upstream note: saveas viewport-promotion defect given a synthetic repro
+Changed: psa/pr/multi-viewport-plot.md refined so the saveas defect (build 0.066's finding) is actionable upstream. The status line no longer says "not a one-line fix" -- the saveas id-renumbering bug is small and well-scoped, distinct from the feature-level compositing gap. Added a synthetic repro that needs no project DWG (two-folder rule): a layout with two sheet viewports (viewCenter==center, viewHeight==height, both id=1) plus one model window (id=2); after saveas the second sheet window reads back as id=3 (a model window) instead of staying id=1, so it draws model content. The fix is to preserve the sheet/model role in the save-time renumber rather than renumber purely by handle order. (A hand-built synthetic was attempted with cadcraft's own mview and confirmed to create model viewports correctly; the two-sheet-window structure that triggers the defect is authored in the template, so the repro is described precisely rather than shipped as a fixture.)
+Check:   the write-up now separates the two issues (defect vs feature gap) and each has a concrete repro; no project DWG or private word referenced (leak check clean on the staged blob).
+Files:   psa/pr/multi-viewport-plot.md, psa/CHANGELOG.md, psa/VERSION
+
 ## 0.069  2026-10-18  M4-C14 follow-up: check-ink.ps1 was never committed (broken checkout)
 Changed: an audit of every script gen-all.ps1 calls found one gap -- check-ink.ps1 (the M4-C14 monochrome/ink check added in build 0.064) exists on disk but was never `git add`ed, so it is untracked and absent from the fusion branch. gen-all.ps1 runs it as a required check, so a fresh clone of fusion would fail at the check-ink stage (the script file is not there). No other referenced script is untracked (all 19 others are tracked). Commit the script so the pipeline is complete in the repo, not just on this machine.
 Check:   `git ls-files psa/scripts/check-ink.ps1` now returns the path (was empty); the full psa/scripts audit shows every gen-all-referenced script tracked. The script itself still PASSes (all 12 generated plots monochrome, non-empty).

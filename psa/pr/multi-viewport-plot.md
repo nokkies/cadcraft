@@ -1,8 +1,9 @@
 # Paper-space plots do not composite multiple viewports the way AutoCAD does
 
-Status: **feature gap plus one saveas defect.** Filed as an M5 observation from the PSA drawing project. No PR
-branch attached — this is a paper-space plotting behaviour, a feature-level difference from the
-reference, not a one-line fix. Reinach decides whether it becomes an issue on `storytold/cadcraft`.
+Status: **one saveas defect (likely a small fix) plus one plotting feature gap.** Filed as an M5
+observation from the PSA drawing project. No PR branch attached. The saveas defect below is small and
+well-scoped; the compositing gap further down is feature-level. Reinach decides which become issues on
+`storytold/cadcraft`.
 
 ## Saveas defect: a sheet viewport is promoted into the model-window list (build 0.066)
 
@@ -18,6 +19,14 @@ expected behaviour is that a sheet viewport keeps its paper-space role across a 
 generation-side (psa/scripts/gen-*.ps1 erase every viewport but the largest sheet window and the
 largest model window before saving); the underlying save should not renumber a sheet viewport into a
 model window.
+
+Synthetic repro (no project DWG needed): create a drawing with one paper-space layout holding two
+viewports whose `viewCenter == center` and `viewHeight == height` (two sheet windows, both id=1) plus
+one model window (id=2, a smaller view of some model content). `saveas` the drawing, then `entities
+{"type":"Viewport"}` and read the `id` of the second sheet window. Expected: it stays id=1 (a sheet
+window). Observed: it becomes id=3 (a model window), so it now draws model content. The fix is in the
+save-time id renumbering — it should preserve the sheet/model distinction (id=1 for sheet windows)
+rather than renumbering purely by handle order.
 
 ## Summary
 
