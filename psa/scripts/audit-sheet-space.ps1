@@ -12,11 +12,12 @@
 #     only, never by text, so the output is safe to commit under the two-folder rule)
 #
 # Expected differences, all reported as EXPECTED rather than defects:
-#   - paper Viewport 4->2: the source template carries four viewports, two of which are template
-#     furniture that shows nothing (measured: the duplicate sheet window 41D1 at id=1, and the detail
-#     window 41D5 at viewHeight 3188 -- zoomed out to nothing). The generators erase those two because
-#     cadcraft's saveas renumbers ids and promotes 41D1 into the model-window list, which drew the
-#     content two or three times (the "duplicated" look Reinach reported).
+#   - paper Viewport count. This used to read "4->2" and explained it by the generators erasing two template
+#     viewports. That expectation is withdrawn: the erase was removed at build 0.110, and the reason it was
+#     written (cadcraft's saveas renumbering ids and promoting 41D1 into the model-window list, which drew
+#     content two or three times) was fixed properly in cadcraft at 0.105. A generated sheet now carries the
+#     same four viewports as its source, so an audit that still expected 2 would be asserting the workaround
+#     rather than the target -- the failure shape check-f6 was corrected for at 0.106.
 #   - model MText additions on the annotation layers: the generators add the D4 terminal-number labels
 #     (a "Tn" beside each I/O channel name, card DRAWING-WORK D4) and the D3 DIN-rail note. Additions
 #     are allowed; MISSING source texts are not.
@@ -113,7 +114,10 @@ foreach ($n in @($Project.sheets | Sort-Object)) {
         if ($sp.ContainsKey($t)) { $a = $sp[$t] }
         if ($gp.ContainsKey($t)) { $b = $gp[$t] }
         if ($a -ne $b) {
-            if ($t -eq 'Viewport' -and $a -eq 4 -and $b -eq 2) { continue }   # expected (see header)
+            # Viewport counts must match exactly. The tolerance this line used to carry -- "4->2 is expected"
+            # -- was the erase written into the audit, and the erase is gone (build 0.110). Leaving it would
+            # forgive a sheet that genuinely lost a window, which is exactly the regression check-detail
+            # exists to catch. An audit that tolerates a defect cannot report it.
             $unexpected += ('paper ' + $t + ' ' + $a + '->' + $b)
         }
     }
@@ -184,7 +188,6 @@ foreach ($n in @($Project.sheets | Sort-Object)) {
         $fail++
     } else {
         $notes = @()
-        if ($sp.ContainsKey('Viewport') -and $gp.ContainsKey('Viewport') -and $sp['Viewport'] -eq 4 -and $gp['Viewport'] -eq 2) { $notes += 'Viewport 4->2 expected' }
         if ($added -gt 0) { $notes += ([string]$added + ' annotation texts added (D4/D3)') }
         $noteStr = ''
         if ($notes.Count -gt 0) { $noteStr = ' (' + ($notes -join ', ') + ')' }
@@ -193,5 +196,5 @@ foreach ($n in @($Project.sheets | Sort-Object)) {
 }
 
 if ($fail -gt 0) { Write-Host "FAIL sheet-space audit ($fail sheet(s) differ beyond the expected differences)"; exit 1 }
-Write-Host 'PASS sheet-space audit (every generated sheet matches its source in paper and model space, apart from the erased template viewports and the intentional annotations)'
+Write-Host 'PASS sheet-space audit (every generated sheet matches its source in paper and model space, apart from the intentional annotations)'
 exit 0

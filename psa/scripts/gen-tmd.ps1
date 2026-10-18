@@ -243,8 +243,9 @@ foreach ($e in $ents.entities) {
 }
 
 $outDwg = Join-Path $OutDir $name
-# M4-C16/C17: switch to the layout, erase the extra viewports (duplicate sheet + empty detail), then
-# frame the content viewport on the drawn content's extents (see gen-scd.ps1 for the note).
+# M4-C16/C17: switch to the layout, then frame the content viewport on the drawn content's extents.
+# (This line used to say "erase the extra viewports" as well; the erase was removed at build 0.110 -- see
+# the note below and the full history in gen-scd.ps1.)
 if ($tplLayout) {
     $lines.Add('layout.set {"name":' + (ConvertTo-JsonStringValue -Value $tplLayout) + '}')
 }
