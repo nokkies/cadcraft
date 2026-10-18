@@ -257,10 +257,10 @@ $lines.Add('style {"name":"Romans"}')
 $lines.Add('text {"at":[768,72],"text":"PRELIMINARY","height":4}')
 $lines.Add('text {"at":[753,66],"text":"NOT FOR CONSTRUCTION","height":4}')
 
-if ($tplExtraVpHandles.Count -gt 0) {
-    $hjson = ($tplExtraVpHandles | ForEach-Object { ConvertTo-JsonStringValue -Value $_ }) -join ','
-    $lines.Add('erase {"handles":[' + $hjson + ']}')
-}
+# Build 0.106: the extra viewports used to be erased here because cadcraft's saveas renumbered viewport
+# ids and promoted the second sheet window into the model list, drawing the content two or three times.
+# Build 0.105 carries the sheet role in CADCraft xdata across a DWG save, so that no longer happens and
+# the erase is gone -- which is what lets the detail window survive, as it does on the working drawings.
 if ($tplVpHandle -and $hasExtents) {
     $cx = ($minX + $maxX) / 2.0
     $cy = ($minY + $maxY) / 2.0
