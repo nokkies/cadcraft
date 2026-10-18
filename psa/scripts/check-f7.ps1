@@ -16,9 +16,10 @@
 #
 # The exclusion still stands, for a different and better reason: viewport identity is not a content property.
 # cadcraft renumbers viewport ids on save, so ids differ between source and generated even when the windows
-# are the same ones, and comparing them as data would compare bookkeeping. What the viewports actually SHOW
-# is measured by check-detail (M4-C21), which counts the ink inside the detail window against the source's.
-# So the exclusion is scoped to identity, and the substance is covered elsewhere rather than dropped.
+# are the same ones, and comparing them as data would compare bookkeeping. The viewport COUNT is checked
+# separately by count-viewports (M4-G1), which requires a generated sheet to carry the same number of
+# paper-space viewports as its source. So the exclusion is scoped to identity, and the substance is covered
+# elsewhere rather than dropped.
 #
 # Exit 0 when every generated sheet is content-complete, 1 otherwise.
 
@@ -63,7 +64,7 @@ foreach ($n in @($Project.sheets | Sort-Object)) {
     if ($null -eq $js -or $null -eq $jg) { Write-Host "FAIL $n (could not read entities)"; $failCount++; continue }
 
     # Entity-type counts, excluding Viewport. Viewport identity is cadcraft's bookkeeping, not sheet content
-    # (ids are renumbered on save); what the windows show is measured by check-detail. See the header note.
+    # (ids are renumbered on save); the viewport count is checked by count-viewports. See the header note.
     $st = @{}; foreach ($e in $js.entities) { $st[$e.type] = 1 + ($st[$e.type] ?? 0) }
     $gt = @{}; foreach ($e in $jg.entities) { $gt[$e.type] = 1 + ($gt[$e.type] ?? 0) }
     $typeProblems = @()

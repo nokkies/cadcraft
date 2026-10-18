@@ -2,7 +2,7 @@
 #
 # Why this exists. Build 0.115 measured a hole: freeze six content layers inside a generated sheet's content
 # viewport and roughly 40% of the drawing stops plotting (9,018 ink items against 15,274), and check-f2,
-# check-f5, check-f6, check-detail and check-textheights ALL pass it. Each of those measures a quantity that
+# check-f5, check-f6 and check-textheights ALL pass it. Each of those measures a quantity that
 # losing content happens not to move much -- PDF bytes, hashes, viewport framing, one ratio inside a generous
 # band, text sizes. Only check-f7 noticed, by entity count, which is a data check and says nothing about what
 # reaches the page. check-f2's header records this as the gap and names the fix as a whole-sheet ink

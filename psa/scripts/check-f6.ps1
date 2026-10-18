@@ -96,13 +96,13 @@ foreach ($dwg in $dwgs) {
     if ($null -eq $best) { Write-Host "FAIL $($dwg.Name) no content viewport (id>=2)"; $failCount++; continue }
     $vcx = [double]$best.viewCenter.x; $vcy = [double]$best.viewCenter.y; $vh = [double]$best.viewHeight
 
-    # M4-C17 (revised by build 0.106): this used to require EXACTLY ONE model-space window (id>=2),
-    # which was written to pass the generator's workaround rather than the target. The working drawings
-    # have TWO (measured on the source: a content window and a detail window), and the workaround was
-    # erasing the second one -- which is why generated plots lacked the detail windows the source has.
-    # Build 0.105 fixed the cadcraft defect that forced the erase, so the check now asserts the property
-    # that actually matters: no two model windows show the SAME region. Ghosting is duplication, not
-    # multiplicity, and the source proves two distinct windows are correct.
+    # M4-G1 (build 0.126): this used to require EXACTLY ONE model-space window (id>=2), written to pass the
+    # generator's erase workaround rather than the target. The template's second model window (41D5) turned
+    # out to be an orphan `*Paper_Space0` viewport no layout owned (psa/REVIEW-0.125.md section 1), and the
+    # template was regenerated with the orphan emptied -- so a source sheet now has one content window, and
+    # so does a generated one. What still matters, and what this asserts, is that no two model windows show
+    # the SAME region: ghosting is duplication, not multiplicity. With one content window there is nothing to
+    # duplicate, so this is a cheap guard against a future regression reintroducing a duplicated window.
     $modelVps = @(@($vo.entities | Where-Object { $g = $_.geometry; ($g.PSObject.Properties.Name -contains 'id') -and ([int]$g.id -ge 2) }))
     if ($modelVps.Count -lt 1) {
         Write-Host "FAIL $($dwg.Name) (no model-space window at all, nothing plots)"

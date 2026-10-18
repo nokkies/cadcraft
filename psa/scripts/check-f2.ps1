@@ -29,20 +29,15 @@
 # check-f2 PASSED it. That is a sheet that lost roughly a fifth of its plotted bytes and about 40% of its
 # ink items (9,018 against 15,274).
 #
-# (b) is a real coverage gap, not a documentation footnote, and it is not covered by the neighbours either.
-# The same frozen sheet was run against every check that could plausibly see it: check-f2 PASS, check-f5
-# PASS, check-f6 PASS, check-detail PASS (detail window 94% of ink against a source at 71%, a 32% drift
-# inside the 35% tolerance), check-textheights PASS. Only check-f7 caught it, and by entity count rather
-# than by appearance. So a sheet can lose a large fraction of its drawing and the plot-side checks let it
-# through, because each measures a quantity that freezing layers happens not to move much: bytes, hashes,
-# viewport framing, a ratio inside a generous band, text sizes.
+# (b) is a real coverage gap, not a documentation footnote. The same frozen sheet was run against every
+# check that could plausibly see it: check-f2 PASS, check-f5 PASS, check-f6 PASS, check-textheights PASS.
+# Only check-f7 caught it, and by entity count rather than by appearance. So a sheet can lose a large
+# fraction of its drawing and the plot-side checks let it through, because each measures a quantity that
+# freezing layers happens not to move much: bytes, hashes, viewport framing, text sizes.
 #
-# What would close it is a whole-sheet ink comparison against the source, the same shape as check-detail but
-# over the entire page rather than the detail window -- check-detail already computes both numbers, so the
-# data is there. It is deliberately not added here: check-detail's own first version was rejected at build
-# 0.109 for asserting a threshold nobody had measured against the reference, and a whole-sheet tolerance
-# would need the same measurement before it can be written down. Recorded as the next thing to do, with the
-# frozen sheet as its negative test.
+# The gap was closed by check-sheetink (M4-C23, build 0.116): a whole-sheet ink comparison against the
+# source, over the entire page. It is the check this header used to say "should be written". It pins
+# CADCRAFT_FONTALT for both sides, because the ink count depends on how text is rasterised (see its header).
 
 [CmdletBinding()]
 param(

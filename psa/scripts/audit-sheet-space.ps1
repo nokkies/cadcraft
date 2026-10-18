@@ -13,11 +13,12 @@
 #
 # Expected differences, all reported as EXPECTED rather than defects:
 #   - paper Viewport count. This used to read "4->2" and explained it by the generators erasing two template
-#     viewports. That expectation is withdrawn: the erase was removed at build 0.110, and the reason it was
-#     written (cadcraft's saveas renumbering ids and promoting 41D1 into the model-window list, which drew
-#     content two or three times) was fixed properly in cadcraft at 0.105. A generated sheet now carries the
-#     same four viewports as its source, so an audit that still expected 2 would be asserting the workaround
-#     rather than the target -- the failure shape check-f6 was corrected for at 0.106.
+#     viewports. That expectation is withdrawn. The "four viewports" was itself wrong: two of them lived in an
+#     orphan `*Paper_Space0` block no layout owned, which cadcraft read into the live layout (psa/REVIEW-0.125.md
+#     section 1). The template and sources were regenerated with the orphan emptied, so a source sheet has two
+#     paper-space viewports and so does a generated one. The count is now asserted equal by count-viewports
+#     (M4-G1); this audit still reports the viewport count as an EXPECTED difference rather than a defect
+#     because viewport identity is cadcraft's bookkeeping (ids renumber on save), not a content property.
 #   - model MText additions on the annotation layers: the generators add the D4 terminal-number labels
 #     (a "Tn" beside each I/O channel name, card DRAWING-WORK D4) and the D3 DIN-rail note. Additions
 #     are allowed; MISSING source texts are not.
@@ -116,8 +117,8 @@ foreach ($n in @($Project.sheets | Sort-Object)) {
         if ($a -ne $b) {
             # Viewport counts must match exactly. The tolerance this line used to carry -- "4->2 is expected"
             # -- was the erase written into the audit, and the erase is gone (build 0.110). Leaving it would
-            # forgive a sheet that genuinely lost a window, which is exactly the regression check-detail
-            # exists to catch. An audit that tolerates a defect cannot report it.
+            # forgive a sheet that genuinely lost a window, which is exactly the regression count-viewports
+            # (M4-G1) exists to catch. An audit that tolerates a defect cannot report it.
             $unexpected += ('paper ' + $t + ' ' + $a + '->' + $b)
         }
     }

@@ -123,44 +123,40 @@ if ($tplLayout) {
     }
 }
 
-# M4-C16/C17: keep only the largest sheet window and the largest model (content) window; erase every
-# other viewport. The template carries a second sheet window (41D1) and an empty detail window (41D5)
-# that cadcraft's saveas promotes into the model list, so the saved sheet draws the content two or
-# three times (the "duplicated" look). Identify by role (largest per id class), never by handle.
+# The template's content viewport: the model-space window (id>=2; id<=1 is the sheet-border viewport).
+# Read its handle, paper centre and height -- never hard-code them. M4-G2 frames the generated content
+# window on the SOURCE sheet's own centre and height.
+#
+# M4-G1 (build 0.126): the template's two extra viewports (41D1, 41D5) were an orphan `*Paper_Space0`
+# block no layout owned, read into the live layout by cadcraft (psa/REVIEW-0.125.md section 1). The
+# template was regenerated with the orphan emptied, so it now has the same two viewports every source
+# sheet has. The role-classification and dead erase list built around those phantoms are removed.
 $tplVpHandle = ''
 $tplVpArea = -1.0
 $tplVpCenterX = 0.0
 $tplVpCenterY = 0.0
 $tplVpHeight = 0.0
-$tplExtraVpHandles = @()
 if ($tplLayout) {
     $tvps = Invoke-CliSteps -Cli $cli -Drawing $Template -Steps @(
         ('layout.set {"name":' + (ConvertTo-JsonStringValue -Value $tplLayout) + '}'),
         'entities {"type":"Viewport","limit":100}'
     )
     if ($null -ne $tvps) {
-        $sheetHandle = ''; $sheetArea = -1.0
         foreach ($e in $tvps.entities) {
             $g = $e.geometry
             $vid = -1
             if ($g.PSObject.Properties.Name -contains 'id') { $vid = [int]$g.id }
+            if ($vid -lt 2) { continue }
             $w = 0.0; $h = 0.0
             if ($g.PSObject.Properties.Name -contains 'width') { $w = [double]$g.width }
             if ($g.PSObject.Properties.Name -contains 'height') { $h = [double]$g.height }
             $area = $w * $h
-            if ($vid -le 1) {
-                if ($area -gt $sheetArea) { $sheetArea = $area; $sheetHandle = [string]$e.handle }
-            } else {
-                if ($area -gt $tplVpArea) {
-                    $tplVpArea = $area; $tplVpHandle = [string]$e.handle
-                    if ($g.PSObject.Properties.Name -contains 'center' -and $g.center) { $tplVpCenterX = [double]$g.center.x; $tplVpCenterY = [double]$g.center.y }
-                    $tplVpHeight = $h
-                }
+            if ($area -gt $tplVpArea) {
+                $tplVpArea = $area; $tplVpHandle = [string]$e.handle
+                if ($g.PSObject.Properties.Name -contains 'center' -and $g.center) { $tplVpCenterX = [double]$g.center.x; $tplVpCenterY = [double]$g.center.y }
+                $tplVpHeight = $h
             }
         }
-        $keep = @($sheetHandle, $tplVpHandle)
-        $allHandles = @($tvps.entities | ForEach-Object { [string]$_.handle })
-        $tplExtraVpHandles = @($allHandles | Where-Object { $_ -notin $keep })
     }
 }
 
@@ -258,9 +254,11 @@ foreach ($e in $ents.entities) {
 }
 
 $outDwg = Join-Path $OutDir $name
-# M4-C16/C17: switch to the layout, then frame the content viewport on the drawn content's extents.
-# (This line used to say "erase the extra viewports" as well; the erase was removed at build 0.110 -- see
-# the note below and the full history in gen-scd.ps1.)
+# M4-C16: switch to the layout, then frame the content viewport. M4-G1 (build 0.126): the erase that used
+# to sit here erased the template's two orphan viewports (41D1, 41D5), which turned out to be an orphan
+# `*Paper_Space0` block no layout owned (psa/REVIEW-0.125.md section 1). The template was regenerated with
+# the orphan emptied, so there is nothing to erase; the generated sheet carries the same two viewports as
+# its source. M4-G2 (build 0.127) frames the window on the source's own centre and height.
 if ($tplLayout) {
     $lines.Add('layout.set {"name":' + (ConvertTo-JsonStringValue -Value $tplLayout) + '}')
 }
@@ -273,10 +271,6 @@ $lines.Add('style {"name":"Romans"}')
 $lines.Add('text {"at":[768,72],"text":"PRELIMINARY","height":4}')
 $lines.Add('text {"at":[753,66],"text":"NOT FOR CONSTRUCTION","height":4}')
 
-# M4-C17 (build 0.110): the extra viewports are NOT erased. Erasing 41D5 deletes a DISPLAYED viewport that
-# shows a third of the sheet: measured on a source sheet with only that entity removed, plotted ink falls
-# from 11,376 to 6,887. That single deletion is also the whole "generated plots at 0.6 of the source" gap.
-# Full history and the measurement in gen-scd.ps1; check-detail (M4-C21) guards it.
 if ($tplVpHandle -and $hasExtents) {
     $cx = ($minX + $maxX) / 2.0
     $cy = ($minY + $maxY) / 2.0

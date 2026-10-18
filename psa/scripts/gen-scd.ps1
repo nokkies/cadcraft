@@ -156,64 +156,47 @@ if ($tplLayout) {
     }
 }
 
-# M4-C16: the template's content viewport handle (the model-space window with the largest paper
-# window; id>=2, since id<=1 is the sheet-border viewport). Read it, never hard-code.
-# M4-C17: also collect the OTHER model-window handles (id>=2, not the content window). The template
-# carries a second sheet viewport (41D1) and an empty detail window (41D5) alongside the content
-# window (30F5). cadcraft's saveas renumbers the ids and promotes 41D1 (a sheet viewport) into the
-# model-window list, so the saved layout has THREE model windows all drawing the same model content
-# -> the plotted/GUI sheet shows the content two or three times over (Reinach: "looks duplicated").
-# Erasing every model window except the content one leaves 1021 (sheet) + 30F5 (content): one clean
-# copy. Erase by role (id>=2, not the content handle), never by hard-coded handle.
+# The template's content viewport: the model-space window (id>=2; id<=1 is the sheet-border viewport).
+# Read its handle, paper centre and height -- never hard-code them. M4-G2 frames the generated content
+# window on the SOURCE sheet's own centre and height, so the generator needs to know the window it is
+# framing; it captures that here.
+#
+# M4-G1 (build 0.126): the template and the source sheets were regenerated with an orphan paper-space
+# block emptied (psa/REVIEW-0.125.md section 1). The template used to carry two extra viewports -- a
+# second sheet window (41D1) and an empty detail window (41D5) -- that lived in a `*Paper_Space0` block
+# no layout owned; cadcraft read that orphan's entities into the live layout, so every file that went
+# through it gained two viewports and every measurement saw four where the file had two. The generators
+# grew erase/restore/role-classification logic around those two phantoms. They are gone now: the
+# template has exactly two viewports (1021 sheet + 30F5 content), the same two every source sheet has.
+# The classification and the dead erase list are removed with them.
 $tplVpHandle = ''
 $tplVpArea = -1.0
 $tplVpCenterX = 0.0
 $tplVpCenterY = 0.0
 $tplVpHeight = 0.0
-$tplExtraVpHandles = @()
 if ($tplLayout) {
     $tvps = Invoke-CliSteps -Cli $cli -Drawing $Template -Steps @(
         ('layout.set {"name":' + (ConvertTo-JsonStringValue -Value $tplLayout) + '}'),
         'entities {"type":"Viewport","limit":100}'
     )
     if ($null -ne $tvps) {
-        # The template carries four viewports: the sheet window (1021, id=1, the largest), a second
-        # smaller sheet window (41D1, id=1), the content window (30F5, id>=2, the largest model
-        # window), and an empty detail window (41D5, id>=2). cadcraft's saveas renumbers the ids and
-        # promotes the second sheet window into the model list, so the saved sheet draws the content
-        # two or three times (the "duplicated" look). Keep only the largest sheet window and the
-        # largest model window; erase every other viewport. Identify by role (largest per class),
-        # never by hard-coded handle.
-        $sheetHandle = ''; $sheetArea = -1.0
-        $modelHandles = @()
+        # The content window is the largest model-space window (id>=2). Its paper centre and height are
+        # what the working drawings frame it with; M4-G2 copies the source's own numbers onto it.
         foreach ($e in $tvps.entities) {
             $g = $e.geometry
             $vid = -1
             if ($g.PSObject.Properties.Name -contains 'id') { $vid = [int]$g.id }
+            if ($vid -lt 2) { continue }
             $w = 0.0; $h = 0.0
             if ($g.PSObject.Properties.Name -contains 'width') { $w = [double]$g.width }
             if ($g.PSObject.Properties.Name -contains 'height') { $h = [double]$g.height }
             $area = $w * $h
-            if ($vid -le 1) {
-                if ($area -gt $sheetArea) { $sheetArea = $area; $sheetHandle = [string]$e.handle }
-            } else {
-                $modelHandles += [string]$e.handle
-                if ($area -gt $tplVpArea) {
-                    $tplVpArea = $area; $tplVpHandle = [string]$e.handle
-                    # M4-C18: remember the content window's own paper centre and height. The working
-                    # drawings frame this window as view = window centre, viewHeight = window height
-                    # (measured: 11 of 12 sheets use exactly (420,322) vh 524), and draw their content
-                    # in model space to land inside it. Copy that framing rather than recomputing a
-                    # tighter view from the content box, which zoomed in and shifted the view.
-                    if ($g.PSObject.Properties.Name -contains 'center' -and $g.center) { $tplVpCenterX = [double]$g.center.x; $tplVpCenterY = [double]$g.center.y }
-                    $tplVpHeight = $h
-                }
+            if ($area -gt $tplVpArea) {
+                $tplVpArea = $area; $tplVpHandle = [string]$e.handle
+                if ($g.PSObject.Properties.Name -contains 'center' -and $g.center) { $tplVpCenterX = [double]$g.center.x; $tplVpCenterY = [double]$g.center.y }
+                $tplVpHeight = $h
             }
         }
-        # Erase: every sheet window except the largest, and every model window except the content one.
-        $keep = @($sheetHandle, $tplVpHandle)
-        $allHandles = @($tvps.entities | ForEach-Object { [string]$_.handle })
-        $tplExtraVpHandles = @($allHandles | Where-Object { $_ -notin $keep })
     }
 }
 
@@ -452,33 +435,15 @@ if ($name -match 'GAD-001') {
     }
 }
 
-# M4-C16: frame the content viewport on the drawn content's extents so the sheet shows the drawing,
-# not empty space. The template's content viewport pointed at an empty template model space, so a
-# generated sheet plotted with border + title block but no content. viewHeight sets the vertical
-# extent; the horizontal follows the window's aspect, so fit the larger of content height and
-# (content width / aspect), with a margin. The viewport is unlocked first so the view can change.
-# M4-C17 (build 0.110): the extra viewports are NOT erased.
+# M4-C16: frame the content viewport so the sheet shows the drawing, not empty space. The template's
+# content window pointed at empty template model space, so a generated sheet plotted border + title
+# block with no content. M4-G2 (build 0.127) frames it on the SOURCE sheet's own centre and height.
 #
-# This erase has had three lives and the history is worth keeping, because each time it was removed for a
-# partly-right reason and put back for a partly-right reason.
-#
-# 1. Added because cadcraft's saveas renumbered viewport ids and promoted the second sheet window into the
-#    model list, drawing the content two or three times. Build 0.105 fixed that properly, in cadcraft: the
-#    sheet role is carried in CADCraft xdata across a DWG save.
-# 2. Removed at 0.106/0.107 on the strength of 0.105 alone. Wrong, but for a different reason than first
-#    thought -- see 3.
-# 3. Restored at 0.108 on the belief that the detail window echoed the whole drawing. Also wrong: measured
-#    against the working drawings, their own detail windows carry 54-96% of their sheet's ink. A reduced
-#    overall view in a small window IS what the templates do.
-#
-# Removed again here because build 0.110 measured what the erase actually costs. Taking a SOURCE sheet and
-# erasing only 41D5 through cadcraft -- identical content, identical commands, one entity deleted -- drops
-# the plotted ink from 11,376 to 6,887 on SCD-003 and from 15,300 to 8,817 on SCD-001. The erase deletes a
-# DISPLAYED viewport (all four source viewports have on=True) that shows a third of the sheet. That single
-# deletion is also the whole of the "generated sheets plot at 0.6 of the source" gap.
-#
-# check-detail (M4-C21) is the guard: it compares each sheet's detail region against its source's, so
-# putting the window back has to be measured, not assumed, in either direction.
+# M4-G1 (build 0.126): the erase that used to live here is gone for good. It erased the template's two
+# orphan viewports (41D1, 41D5), which turned out to be a template bug -- an orphan `*Paper_Space0`
+# block no layout owned, read into the live layout by cadcraft (psa/REVIEW-0.125.md section 1). The
+# template was regenerated with the orphan emptied, so there is nothing to erase: the generated sheet
+# carries the same two viewports as its source.
 if ($tplLayout) {
     $lines.Add('layout.set {"name":' + (ConvertTo-JsonStringValue -Value $tplLayout) + '}')
 }

@@ -161,30 +161,27 @@ else { Write-Host "[check-f8] PASS  $f8Last" }
 #   audit-linetypes   the linetype table, header variables, and that the renderer dashes correctly
 #   audit-colours     rendered stroke geometry and colours, through one fixed window
 $audits = @('audit-layers', 'audit-sheet-space', 'audit-textstyles', 'audit-blocks', 'audit-linetypes', 'audit-colours')
-# check-detail is a check, not an audit: it measures what a detail viewport SHOWS, which no other check
-# does. It exists because builds 0.106/0.107 restored the template's detail window and the whole gate went
-# green while every plot carried roughly twice the source's ink -- every other check verified that a window
-# exists and how many there are, none looked at the ink inside one.
-#
 # check-textheights measures the height every text RENDERS at. audit-textstyles compares the style table and
 # audit-blocks compares block scales and attribute values; both stayed green on GAD-001 while its balloon
-# tags were 2.5mm in the source and 15.0mm in the generated sheet. The height that renders lives on the
-# attribute's own text properties, in the seam between the two audits. It currently fails GAD-001, which is
-# the true state of that sheet, recorded rather than hidden -- see psa/pr/true-type-attribute-scale.md.
+# tags differed between source and generated. The height that renders lives on the attribute's own text
+# properties, in the seam between the two audits.
 #
 # check-sheetink compares a whole plotted sheet's ink against its source. It exists because build 0.115 froze
 # six content layers inside a generated sheet's content viewport, removed about 40% of the drawing, and
-# check-f2, check-f5, check-f6, check-detail and check-textheights all passed it. Eleven sheets plot at
-# exactly 1.0000 of their source; GAD-001 plots at 2.0087 -- its balloon text renders at the size that matches
-# its circles while the source plots that text far too small (a source-data trait, not a defect; see the
-# accepted-exceptions block below and psa/pr/true-type-attribute-scale.md).
+# check-f2, check-f5, check-f6 and check-textheights all passed it. A whole-sheet ink comparison catches that;
+# no other check does.
+#
+# count-viewports (M4-G1) checks each generated sheet has exactly the two paper-space viewports its source
+# has. It replaces check-detail, which measured the ink inside a "detail window" that turned out to be an
+# orphan `*Paper_Space0` block no layout owned (psa/REVIEW-0.125.md section 1) -- the template was regenerated
+# with the orphan emptied, so there is no detail window to measure and check-detail is deleted.
 #
 # Fields swept and found clean (so the next round does not re-derive them): rotation (build 0.123) -- every
 # model-space entity on all twelve sheets is axis-aligned, zero rotated entities, so there is nothing to
 # mismatch; per-entity lineweight is not exposed by the `entities` command and is covered indirectly by
 # check-sheetink's total-ink measurement. Round 57 already cleared Line (layer+colour only), Circle
 # (centre+radius) and MText.lineSpacing (1.0 everywhere).
-$checks = @('check-detail', 'check-textheights', 'check-sheetink', 'check-mtextwidth')
+$checks = @('check-textheights', 'check-sheetink', 'check-mtextwidth', 'count-viewports')
 foreach ($a in ($checks + $audits)) {
     $out = (& pwsh -NoProfile -File (Join-Path $s ($a + '.ps1')) 2>&1 | Out-String)
     $last = (($out -split "`r?`n" | Where-Object { $_ -match '\S' } | Select-Object -Last 1))
