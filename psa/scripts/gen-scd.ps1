@@ -418,9 +418,12 @@ if ($name -match 'GAD-001') {
         # M4-F4: MText line breaks are the DXF paragraph code \P, not \n (a literal \n renders as
         # the two characters backslash-n on the sheet). The source's own MText already uses \P.
         $noteText = $noteLines -join '\P'
-        # Place the note in a clear area (lower-left of the GA interior).
+        # Place the note in a clear area. (40,120) collided with the earth-bar assembly and balloon
+        # 12's leader (measured: assembly lines at (40,100),(130,180) and the EARTH BAR label at
+        # (190,192) all within reach). The upper-right column below the NOTES block (x~1360, y<960)
+        # is empty (measured: 0 entities in x>1300, 650<y<960), so drop the note there.
         Emit-Layer '1T'
-        $lines.Add('mtext {"at":[40,120],"text":' + (ConvertTo-JsonStringValue $noteText) + ',"height":3,"layer":"1T"}')
+        $lines.Add('mtext {"at":[1360,720],"text":' + (ConvertTo-JsonStringValue $noteText) + ',"height":3,"layer":"1T"}')
     }
 }
 
