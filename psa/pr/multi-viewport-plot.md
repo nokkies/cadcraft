@@ -73,6 +73,39 @@ from generated plots — the renderer is not the blocker.
   (viewCenter, viewHeight, paper center/width/height, id, frozen layers). Confirmed sufficient: the
   composite renders correctly from this data.
 
+## Localised to the DWG bridge (build 0.103)
+
+The defect was narrowed by differential test, which changes where to look and how big the fix is.
+
+Same template, same `layout.set` + `saveas`, two targets:
+
+| save target | 41D1's id after the round-trip |
+|---|---|
+| `.dxf` | **1** — unchanged, correct |
+| `.dwg` | **3** — promoted to a model window |
+
+The DXF path is innocent at both ends: `dxf_write.rs:1059` writes `w.i(69, i64::from(v.id))` (the stored
+id verbatim) and `dxf_read.rs:490` reads it back with `id: t.i(69).unwrap_or(0) as u32`. A DXF
+round-trip preserves all four ids exactly (`1021`=1, `30F5`=2, `41D1`=1, `41D5`=2).
+
+The DWG path loses them because **DWG has no viewport-id field to store**. Converting the saved DWG back
+to DXF yields VIEWPORT records carrying group 69 = 1, 2, 3, 4 in record order — sequential numbering by
+position, not the original ids. `crates/dwg/src/lib.rs` is a 456-line entity-type map with no viewport
+case at all, and `dxf_write.rs:1436-1439` already documents the consequence: *"DWG does not store
+viewport ids; readers number them in order."*
+
+So this is **not a bug in a renumbering routine — there is no such routine.** It is that the sheet/model
+distinction has nowhere to live across a DWG save. Two consequences for whoever fixes it:
+
+1. The fix is not "stop renumbering". It is to *preserve the distinction* through DWG: either derive it on
+   read (a viewport whose `viewCenter == center` and `viewHeight == height` is a sheet window, so give it
+   id 1) or store it, as `paper_view` already does for the DXF path via CADCraft xdata
+   (`dxf_write.rs:1459-1462`).
+2. The DXF path already solves this correctly, so the DWG fix should reuse that idea rather than invent
+   one. Deriving from geometry is attractive because it needs no format extension and also works on files
+   written by other applications.
+
+
 ## Why it matters for the PSA project
 
 The saveas defect is what forces the generator to erase the detail viewports, and that erasure — not any
