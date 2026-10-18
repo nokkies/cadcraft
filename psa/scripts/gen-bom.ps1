@@ -213,6 +213,37 @@ if ($tplLayout) {
     }
 }
 
+# M4-G2 (build 0.127): the SOURCE sheet's content-window view (viewCenter + viewHeight), copied onto the
+# generated window exactly, no fallback. Read from the source's layout ($tbLayout). See gen-scd.ps1.
+$srcVpViewCenterX = $null
+$srcVpViewCenterY = $null
+$srcVpViewHeight = $null
+if (-not [string]::IsNullOrWhiteSpace($tbLayout)) {
+    $svps = Invoke-CliSteps -Cli $cli -Drawing $BomDrawing -Steps @(
+        ('layout.set {"name":' + (ConvertTo-JsonStringValue -Value $tbLayout) + '}'),
+        'entities {"type":"Viewport","limit":100}'
+    )
+    if ($null -ne $svps) {
+        $bestArea = -1.0
+        foreach ($e in $svps.entities) {
+            $g = $e.geometry
+            $vid = -1
+            if ($g.PSObject.Properties.Name -contains 'id') { $vid = [int]$g.id }
+            if ($vid -lt 2) { continue }
+            $w = 0.0; $h = 0.0
+            if ($g.PSObject.Properties.Name -contains 'width') { $w = [double]$g.width }
+            if ($g.PSObject.Properties.Name -contains 'height') { $h = [double]$g.height }
+            $area = $w * $h
+            if ($area -gt $bestArea -and $g.PSObject.Properties.Name -contains 'viewCenter' -and $g.viewCenter) {
+                $bestArea = $area
+                $srcVpViewCenterX = [double]$g.viewCenter.x
+                $srcVpViewCenterY = [double]$g.viewCenter.y
+                $srcVpViewHeight = [double]$g.viewHeight
+            }
+        }
+    }
+}
+
 # --- model-space geometry (faithful rebuild) --------------------------------------
 # Like gen-tmd.ps1 and gen-scd.ps1, carry every model line and text across so the generated sheet
 # matches the working drawing's exact table geometry. The whole BOM (frame, column rules, every
@@ -332,23 +363,11 @@ $lines.Add('style {"name":"Romans"}')
 $lines.Add('text {"at":[768,72],"text":"PRELIMINARY","height":4}')
 $lines.Add('text {"at":[753,66],"text":"NOT FOR CONSTRUCTION","height":4}')
 
-if ($tplVpHandle -and $hasExtents) {
-    $cx = ($minX + $maxX) / 2.0
-    $cy = ($minY + $maxY) / 2.0
-    $cw = $maxX - $minX
-    $ch = $maxY - $minY
-    # M4-C18: frame the content window as the working drawings do (view = window centre, viewHeight =
-    # window height); fall back to content-centred framing only if the content doesn't fit that view.
-    $aspect = if ($tplVpHeight -gt 0) { $tplVpArea / ($tplVpHeight * $tplVpHeight) } else { 1.55 }
-    $shownW = $tplVpHeight * $aspect
-    $fitsInWindow = ([Math]::Abs($cx - $tplVpCenterX) -le ($shownW / 2.0)) -and ([Math]::Abs($cy - $tplVpCenterY) -le ($tplVpHeight / 2.0)) -and ($cw -le $shownW) -and ($ch -le $tplVpHeight)
-    if ($fitsInWindow) {
-        $lines.Add('viewport.set {"handle":' + (ConvertTo-JsonStringValue -Value $tplVpHandle) + ',"locked":false,"center":[' + (JNum $tplVpCenterX) + ',' + (JNum $tplVpCenterY) + '],"viewHeight":' + (JNum $tplVpHeight) + '}')
-    } else {
-        $vh = [Math]::Max($ch, $cw / $aspect) * 1.1
-        if ($vh -lt 1.0) { $vh = 100.0 }
-        $lines.Add('viewport.set {"handle":' + (ConvertTo-JsonStringValue -Value $tplVpHandle) + ',"locked":false,"center":[' + (JNum $cx) + ',' + (JNum $cy) + '],"viewHeight":' + (JNum $vh) + '}')
-    }
+# M4-G2 (build 0.127): frame the generated content window on the SOURCE sheet's own view, copied exactly,
+# no fallback (see gen-scd.ps1 for the full note). If the source's view could not be read, leave the window
+# as the template authored it.
+if ($tplVpHandle -and $null -ne $srcVpViewHeight) {
+    $lines.Add('viewport.set {"handle":' + (ConvertTo-JsonStringValue -Value $tplVpHandle) + ',"locked":false,"center":[' + (JNum $srcVpViewCenterX) + ',' + (JNum $srcVpViewCenterY) + '],"viewHeight":' + (JNum $srcVpViewHeight) + '}')
 }
 
 $lines.Add('saveas {"path":' + (ConvertTo-JsonStringValue -Value $outDwg) + ',"version":2018}')

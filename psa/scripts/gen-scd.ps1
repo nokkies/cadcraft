@@ -200,6 +200,42 @@ if ($tplLayout) {
     }
 }
 
+# M4-G2 (build 0.127): the SOURCE sheet's content-window view. Read the model-space region the working
+# drawing shows through its content window -- viewCenter and viewHeight -- and copy those numbers onto the
+# generated window, for every sheet, no fallback. The generator used to recompute the view from the drawn
+# content's bounding box (a "content-centred fallback"); on the general arrangement that zoomed the view
+# to 1254 against the source's 1572 and shifted the centre, so the notes ran off the right edge and the
+# plot came out ~2.4x the source's ink. The source's own framing is the target. Read from the source's
+# layout ($tbLayout, discovered above), never hard-coded.
+$srcVpViewCenterX = $null
+$srcVpViewCenterY = $null
+$srcVpViewHeight = $null
+if ($tbLayout) {
+    $svps = Invoke-CliSteps -Cli $cli -Drawing $SchematicDrawing -Steps @(
+        ('layout.set {"name":' + (ConvertTo-JsonStringValue -Value $tbLayout) + '}'),
+        'entities {"type":"Viewport","limit":100}'
+    )
+    if ($null -ne $svps) {
+        $bestArea = -1.0
+        foreach ($e in $svps.entities) {
+            $g = $e.geometry
+            $vid = -1
+            if ($g.PSObject.Properties.Name -contains 'id') { $vid = [int]$g.id }
+            if ($vid -lt 2) { continue }
+            $w = 0.0; $h = 0.0
+            if ($g.PSObject.Properties.Name -contains 'width') { $w = [double]$g.width }
+            if ($g.PSObject.Properties.Name -contains 'height') { $h = [double]$g.height }
+            $area = $w * $h
+            if ($area -gt $bestArea -and $g.PSObject.Properties.Name -contains 'viewCenter' -and $g.viewCenter) {
+                $bestArea = $area
+                $srcVpViewCenterX = [double]$g.viewCenter.x
+                $srcVpViewCenterY = [double]$g.viewCenter.y
+                $srcVpViewHeight = [double]$g.viewHeight
+            }
+        }
+    }
+}
+
 # --- model-space geometry ----------------------------------------------------------
 $ents = Invoke-CliSteps -Cli $cli -Drawing $SchematicDrawing -Steps @('entities {"limit":5000}')
 if ($null -eq $ents) { throw 'could not read the SCD model entities' }
@@ -457,28 +493,16 @@ $lines.Add('style {"name":"Romans"}')
 $lines.Add('text {"at":[768,72],"text":"PRELIMINARY","height":4}')
 $lines.Add('text {"at":[753,66],"text":"NOT FOR CONSTRUCTION","height":4}')
 
-if ($tplVpHandle -and $hasExtents) {
-    $cx = ($minX + $maxX) / 2.0
-    $cy = ($minY + $maxY) / 2.0
-    $cw = $maxX - $minX
-    $ch = $maxY - $minY
-    # M4-C18: frame the content window the way the working drawings do -- view at the window's own
-    # paper centre, viewHeight = the window's height (measured: 11 of 12 source sheets use exactly
-    # (420,322) vh 524), because the content is drawn in model space to land inside that window.
-    # But if the content does not actually sit inside that window view (its centre is far from the
-    # window centre, or it is wider/taller than the window shows -- e.g. the big GAD-001 assembly),
-    # fall back to centring on the content and widening the view to fit it.
-    $aspect = if ($tplVpHeight -gt 0) { $tplVpArea / ($tplVpHeight * $tplVpHeight) } else { 1.55 }
-    $shownW = $tplVpHeight * $aspect
-    $fitsInWindow = ([Math]::Abs($cx - $tplVpCenterX) -le ($shownW / 2.0)) -and ([Math]::Abs($cy - $tplVpCenterY) -le ($tplVpHeight / 2.0)) -and ($cw -le $shownW) -and ($ch -le $tplVpHeight)
-    if ($fitsInWindow) {
-        $vh = $tplVpHeight
-        $lines.Add('viewport.set {"handle":' + (ConvertTo-JsonStringValue -Value $tplVpHandle) + ',"locked":false,"center":[' + (JNum $tplVpCenterX) + ',' + (JNum $tplVpCenterY) + '],"viewHeight":' + (JNum $vh) + '}')
-    } else {
-        $vh = [Math]::Max($ch, $cw / $aspect) * 1.1
-        if ($vh -lt 1.0) { $vh = 100.0 }
-        $lines.Add('viewport.set {"handle":' + (ConvertTo-JsonStringValue -Value $tplVpHandle) + ',"locked":false,"center":[' + (JNum $cx) + ',' + (JNum $cy) + '],"viewHeight":' + (JNum $vh) + '}')
-    }
+# M4-G2 (build 0.127): frame the generated content window on the SOURCE sheet's own view -- the model-space
+# centre and height the working drawing shows through its content window -- copied exactly, no fallback.
+# `viewport.set`'s `center` param sets the window's model-space view centre (its paper position is fixed by
+# the template and unchanged); `viewHeight` sets the vertical extent. The old code recomputed both from the
+# drawn content's bounding box with a content-centred fallback, which on the general arrangement zoomed to
+# 1254 against the source's 1572 and shifted the centre, running the notes off the edge and roughly doubling
+# the plotted ink. If the source's view could not be read, leave the window as the template authored it
+# rather than inventing a framing.
+if ($tplVpHandle -and $null -ne $srcVpViewHeight) {
+    $lines.Add('viewport.set {"handle":' + (ConvertTo-JsonStringValue -Value $tplVpHandle) + ',"locked":false,"center":[' + (JNum $srcVpViewCenterX) + ',' + (JNum $srcVpViewCenterY) + '],"viewHeight":' + (JNum $srcVpViewHeight) + '}')
 }
 
 # M4-C14: the Reference plots are monochrome (measured: black ink, 0.05% coloured pixels). The
