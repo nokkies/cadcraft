@@ -238,6 +238,12 @@ foreach ($e in $ents.entities) {
                 if ($g.PSObject.Properties.Name -contains 'style' -and -not [string]::IsNullOrWhiteSpace([string]$g.style)) {
                     $mtExtra += ',"style":' + (ConvertTo-JsonStringValue -Value $g.style)
                 }
+                # Carry the attachment point too. mtext defaults to 1 (top-left); the source puts many of its
+                # MText at 5 (middle-centre) and those came out top-left, shifting each by half its width and
+                # half its height. Same class as the wrap width at build 0.119.
+                if ($g.PSObject.Properties.Name -contains 'attach' -and [int]$g.attach -ne 1) {
+                    $mtExtra += ',"attach":' + ([int]$g.attach).ToString([System.Globalization.CultureInfo]::InvariantCulture)
+                }
                 $lines.Add('mtext {"at":[' + (JNum $g.insert.x) + ',' + (JNum $g.insert.y) + '],"text":' + (ConvertTo-JsonStringValue -Value $g.contents) + ',"height":' + (JNum $g.height) + ',"layer":' + (ConvertTo-JsonStringValue -Value $e.layer) + $mtExtra + '}')
                 $carried++
             }

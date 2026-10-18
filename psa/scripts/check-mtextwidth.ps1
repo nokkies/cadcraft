@@ -86,6 +86,7 @@ def mtexts(path):
             "y": round(float(ins.get("y") or 0.0), 1),
             "w": round(float(g.get("width") or 0.0), 1),
             "style": g.get("style"),
+            "attach": g.get("attach"),
         })
     return out
 
@@ -100,6 +101,7 @@ for m in gen:
 
 lost = 0
 changed_style = 0
+changed_attach = 0
 matched = 0
 for m in src:
     cands = by_pos.get((m["x"], m["y"])) or []
@@ -116,9 +118,16 @@ for m in src:
     # renders SHX properly.
     if m["style"] and all((c["style"] or "") != m["style"] for c in cands):
         changed_style += 1
+    # Attachment point. mtext defaults to 1 (top-left), so a source MText at 5 (middle-centre) that is not
+    # given its attach comes out top-left: shifted by half its width and half its height. Measured at build
+    # 0.120: 242 of the 874 MText across the twelve sheets. Unlike the style, this one is visible today.
+    src_at = m["attach"] if m["attach"] is not None else 1
+    if any((c["attach"] if c["attach"] is not None else 1) != src_at for c in cands):
+        changed_attach += 1
 
 print(json.dumps({"src_mtexts": len(src), "gen_mtexts": len(gen), "matched": matched,
-                  "lost_width": lost, "changed_style": changed_style}))
+                  "lost_width": lost, "changed_style": changed_style,
+                  "changed_attach": changed_attach}))
 '@
     $script:pyFile = Join-Path $tmp 'mtw.py'
     [System.IO.File]::WriteAllText($script:pyFile, $py, (New-Object System.Text.ASCIIEncoding))
@@ -129,6 +138,7 @@ print(json.dumps({"src_mtexts": len(src), "gen_mtexts": len(gen), "matched": mat
     $fail = 0
     $totLost = 0
     $totStyle = 0
+    $totAttach = 0
     $totMatched = 0
     foreach ($g in $genSheets) {
         $n = $g.BaseName
@@ -165,20 +175,21 @@ print(json.dumps({"src_mtexts": len(src), "gen_mtexts": len(gen), "matched": mat
 
         $totLost += [int]$o.lost_width
         $totStyle += [int]$o.changed_style
+        $totAttach += [int]$o.changed_attach
         $totMatched += [int]$o.matched
-        if ([int]$o.lost_width -gt 0) {
-            Write-Host ("FAIL {0} ({1} of {2} matched MText lost their wrap width; {3} had their text style rewritten)" -f $n, $o.lost_width, $o.matched, $o.changed_style)
+        if ([int]$o.lost_width -gt 0 -or [int]$o.changed_attach -gt 0) {
+            Write-Host ("FAIL {0} ({1} of {2} matched MText lost their wrap width; {3} changed attachment point; {4} had their text style rewritten)" -f $n, $o.lost_width, $o.matched, $o.changed_attach, $o.changed_style)
             $fail++
         } else {
-            Write-Host ("PASS {0} ({1} MText compared, every wrap width and text style preserved)" -f $n, $o.matched)
+            Write-Host ("PASS {0} ({1} MText compared, every wrap width, attachment point and text style preserved)" -f $n, $o.matched)
         }
     }
 
     if ($fail -gt 0) {
-        Write-Host ("FAIL M4-C24 ({0} sheet(s) where MText properties do not survive generation; {1} wrap widths lost in total, {2} text styles rewritten, {3} MText compared)" -f $fail, $totLost, $totStyle, $totMatched)
+        Write-Host ("FAIL M4-C24 ({0} sheet(s) where MText properties do not survive generation; {1} wrap widths lost, {2} attachment points changed, {3} text styles rewritten, {4} MText compared)" -f $fail, $totLost, $totAttach, $totStyle, $totMatched)
         exit 1
     }
-    Write-Host ("PASS M4-C24 (all {0} sheets: {1} MText compared, every wrap width and text style preserved)" -f $genSheets.Count, $totMatched)
+    Write-Host ("PASS M4-C24 (all {0} sheets: {1} MText compared, every wrap width, attachment point and text style preserved)" -f $genSheets.Count, $totMatched)
     exit 0
 } finally {
     if ($tmp -and (Test-Path -LiteralPath $tmp)) { Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue }
