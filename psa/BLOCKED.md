@@ -35,6 +35,19 @@ Nothing to fix in the drawings themselves — this is a cadcraft rendering limit
 Written up for upstream as `psa/pr/shx-font-width.md` (build 0.030), with the code references and a
 measured advance-width number.
 
+**Measured confirmation (build 0.074).** Reinach reported the regenerated sheets "look worse than the
+originals" (round terminals, no border change). Measured the DWG data against the source working
+drawing on SCD-001: the 15 terminal circles on layer 3C are identical in count, radius (2.5) and
+position (0 mismatches over all 15 centers), and the 15 terminal-number texts on layer 3T are
+identical in content and position (0 differences). The A1 BORDER insert is identical (insert 0,0,
+scale 1, rot 0). So the terminals are round because the *source* draws them as round circles, and the
+border is present and unchanged because it is the template's border faithfully used -- both render in
+cadcraft's own paper-space preview and exportpdf plot (full frame, zone markers, title block). The
+"worse" is the renderer: cadcraft substitutes its own stroke font for the SHX fonts (above) and draws
+circles as polygon approximations, so identical DWG data reads less crisply than AutoCAD's render of
+the same data. This is the same M5 render-fidelity gap, not a generation defect -- the data is
+byte-faithful to the source.
+
 ### M5 — multi-viewport paper-space plots composite unreliably (build 0.061, corrected build 0.065)
 
 Comparing a generated sheet's `exportpdf` with the Reference PDF, some sheets plot their content and
