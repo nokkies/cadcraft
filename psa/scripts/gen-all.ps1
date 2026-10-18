@@ -171,7 +171,12 @@ $audits = @('audit-layers', 'audit-sheet-space', 'audit-textstyles', 'audit-bloc
 # tags were 2.5mm in the source and 15.0mm in the generated sheet. The height that renders lives on the
 # attribute's own text properties, in the seam between the two audits. It currently fails GAD-001, which is
 # the true state of that sheet, recorded rather than hidden -- see psa/pr/true-type-attribute-scale.md.
-$checks = @('check-detail', 'check-textheights')
+#
+# check-sheetink compares a whole plotted sheet's ink against its source. It exists because build 0.115 froze
+# six content layers inside a generated sheet's content viewport, removed about 40% of the drawing, and
+# check-f2, check-f5, check-f6, check-detail and check-textheights all passed it. Eleven sheets plot at
+# exactly 1.0000 of their source; GAD-001 plots at 2.0087, the TrueType balloon defect doubling its text ink.
+$checks = @('check-detail', 'check-textheights', 'check-sheetink')
 foreach ($a in ($checks + $audits)) {
     $out = (& pwsh -NoProfile -File (Join-Path $s ($a + '.ps1')) 2>&1 | Out-String)
     $last = (($out -split "`r?`n" | Where-Object { $_ -match '\S' } | Select-Object -Last 1))
@@ -186,6 +191,9 @@ foreach ($a in ($checks + $audits)) {
 #                      ISOCP multiplies the enclosing INSERT scale into the attribute height where the SHX
 #                      path does not. Measured and written up in psa/pr/true-type-attribute-scale.md; it is
 #                      a cadcraft rendering defect, not something the generator can set differently.
+#   GAD-001 sheetink   the same defect seen from the other side: the oversized balloons double the sheet's
+#                      plotted ink, so it measures 2.0087 against its source where the other eleven measure
+#                      exactly 1.0000. One cause, two checks reporting it. Not a second problem.
 # A check that fails silently is worse than no check, so these are recorded here rather than suppressed.
 if ($fail -eq 0) {
     Write-Host 'PASS M4 pipeline (all twelve sheets generated; every check and fidelity audit green; SCD-002 TX1 is the known D8 question)'
