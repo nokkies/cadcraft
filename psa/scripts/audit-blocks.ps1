@@ -45,10 +45,14 @@ $cli = Join-Path $repo 'target\release\cadcraft-cli.exe'
 if (-not (Test-Path -LiteralPath $cli)) { throw "cadcraft-cli not found at $cli" }
 
 function Invoke-Script {
-    param([string]$Drawing, [string]$Command)
+    param([string]$Drawing, [string[]]$Command)
     $scr = [System.IO.Path]::GetTempFileName() + '.scr'
     try {
-        [System.IO.File]::WriteAllText($scr, ($Command + "`r`n"), (New-Object System.Text.ASCIIEncoding))
+        # One script file, possibly several commands: they run in the SAME session, so a layout.set
+        # here still applies to the entities read that follows it. Separate invocations each open a
+        # fresh session and land back in model space.
+        $body = (($Command -join "`r`n") + "`r`n")
+        [System.IO.File]::WriteAllText($scr, $body, (New-Object System.Text.ASCIIEncoding))
         return (& $cli run $Drawing --script-file $scr 2>&1 | Select-Object -Last 1)
     } finally {
         Remove-Item $scr -Force -ErrorAction SilentlyContinue
@@ -62,10 +66,29 @@ function Get-BlockTable {
     try { return @(($raw | ConvertFrom-Json).blocks) } catch { return @() }
 }
 
-function Get-ReferenceKeys {
+function Get-PaperLayout {
     param([string]$Drawing)
+    $raw = Invoke-Script -Drawing $Drawing -Command 'layout.list {}'
+    if (-not $raw) { return 'Layout1' }
+    try {
+        $paper = @(($raw | ConvertFrom-Json) | Where-Object { $_.name -ne 'Model' })
+        if ($paper.Count -gt 0) { return [string]$paper[0].name }
+    } catch { }
+    return 'Layout1'
+}
+
+function Get-ReferenceKeys {
+    param([string]$Drawing, [string]$Layout = '')
     $cmd = 'entities ' + (@{ type = 'Insert'; limit = 2000 } | ConvertTo-Json -Compress)
-    $raw = Invoke-Script -Drawing $Drawing -Command $cmd
+    # Pass layout.set and entities as TWO commands in ONE run so the read stays in paper space:
+    # separate invocations each open a fresh session and land back in model space, which reads as
+    # zero inserts and would make the title block look absent rather than unchecked.
+    if ($Layout) {
+        $set = 'layout.set ' + (@{ name = $Layout } | ConvertTo-Json -Compress)
+        $raw = Invoke-Script -Drawing $Drawing -Command @($set, $cmd)
+    } else {
+        $raw = Invoke-Script -Drawing $Drawing -Command $cmd
+    }
     if (-not $raw) { return @() }
     try { $list = @(($raw | ConvertFrom-Json).entities) } catch { return @() }
     $keys = @()
@@ -121,24 +144,68 @@ foreach ($n in @($Project.sheets | Sort-Object)) {
         if ($bs -ne $bg) { $problems += ("$name base point [$bs] -> [$bg]") }
     }
 
-    # 2 + 3. references, transforms and attributes
-    $rk = @(Get-ReferenceKeys -Drawing $src)
-    $gk = @(Get-ReferenceKeys -Drawing $gen)
-    $totalRefs += $rk.Count
-    $d = Compare-Object $rk $gk
-    if ($d) {
-        $missing = @($d | Where-Object { $_.SideIndicator -eq '<=' })
-        $added = @($d | Where-Object { $_.SideIndicator -eq '=>' })
-        if ($missing.Count) { $problems += ("$($missing.Count) reference(s) missing from generated (first: $($missing[0].InputObject))") }
-        if ($added.Count) { $problems += ("$($added.Count) unexpected reference(s) in generated (first: $($added[0].InputObject))") }
-    }
+    # 2 + 3. references, transforms and attributes -- in BOTH spaces.
+    # Model space alone is not enough: the title block (A1 TITLE TEXT, ~79 attributes) and the border
+    # are PAPER-space references, so a model-only read reported "no references" on every sheet except
+    # the one with balloon tags and never compared the title block at all.
+    $problems = @()
+    $paperRefCount = 0
+    # Each file's paper layout is resolved from ITS OWN layout list: the source sheets name their
+    # layout after the sheet (TMD, SCD, ...) while the generated sheets use Layout1. Using the
+    # source's name on the generated file makes layout.set fail and the read come back empty,
+    # which looks exactly like "the border and title block are missing".
+    $srcPaper = Get-PaperLayout -Drawing $src
+    $genPaper = Get-PaperLayout -Drawing $gen
+    $spaces = @(
+        @{ label = 'model'; srcLayout = ''; genLayout = '' },
+        @{ label = 'paper'; srcLayout = $srcPaper; genLayout = $genPaper }
+    )
+    foreach ($space in $spaces) {
+        $rk = @(Get-ReferenceKeys -Drawing $src -Layout $space.srcLayout)
+        $gk = @(Get-ReferenceKeys -Drawing $gen -Layout $space.genLayout)
+        $totalRefs += $rk.Count
+        $d = Compare-Object $rk $gk
+        if ($d) {
+            $missing = @($d | Where-Object { $_.SideIndicator -eq '<=' })
+            $added = @($d | Where-Object { $_.SideIndicator -eq '=>' })
+            # Report the BLOCK NAME and which tags differ, never the key itself: a title-block key
+            # carries every attribute VALUE, so printing it dumps the project name, client and
+            # drawing numbers into the console and the changelog.
+            foreach ($m in $missing) {
+                $bn = ([string]$m.InputObject).Split('|')[0]
+                $problems += ($space['label'] + ' : reference of block ' + $bn + ' missing or differs in transform/attributes')
+            }
+            foreach ($a in $added) {
+                $bn = ([string]$a.InputObject).Split('|')[0]
+                $problems += ($space['label'] + ' : unexpected reference of block ' + $bn)
+            }
+            # Name the differing TAGS (not values) so the failure is actionable.
+            foreach ($m in $missing) {
+                $mk = [string]$m.InputObject
+                $ak = if ($added.Count) { [string]$added[0].InputObject } else { '' }
+                if ($mk.Split('|')[0] -eq $ak.Split('|')[0]) {
+                    $mt = @(); $at = @()
+                    if ($mk.Split('|').Count -gt 4) { $mt = $mk.Split('|')[4].Split(';') }
+                    if ($ak.Split('|').Count -gt 4) { $at = $ak.Split('|')[4].Split(';') }
+                    $td = @()
+                    foreach ($t in $mt) {
+                        $tag = $t.Split('=')[0]
+                        $ov = @($at | Where-Object { $_.Split('=')[0] -eq $tag })
+                        if ($ov.Count -eq 0) { $td += ($tag + ' (absent)') }
+                        elseif ($ov[0] -ne $t) { $td += $tag }
+                    }
+                    if ($td.Count) { $problems += ($space['label'] + ' : differing attribute tags on ' + $mk.Split('|')[0] + ': ' + (($td | Select-Object -First 6) -join ', ')) }
+                }
+            }
+        }
+        if ($space['label'] -eq 'paper') { $paperRefCount = $rk.Count }    }
 
     if ($problems.Count -gt 0) {
         Write-Host ("FAIL  {0,-16} {1}" -f $short, ($problems -join '; '))
         $fail++
     } else {
         $named = @($sb | ForEach-Object { [string]$_.name } | Where-Object { $_ -notmatch '^A1 |^A2 |^A3 |^\*' } | Select-Object -First 3)
-        $note = if ($rk.Count -gt 0) { "$($rk.Count) references, $($sb.Count) blocks" } else { "$($sb.Count) blocks, no references" }
+        $note = "$($sb.Count) blocks, $($rk.Count) model + $paperRefCount paper references"
         if ($named.Count) { $note += ' (e.g. ' + ($named -join ', ') + ')' }
         Write-Host ("OK    {0,-16} {1}" -f $short, $note)
     }
