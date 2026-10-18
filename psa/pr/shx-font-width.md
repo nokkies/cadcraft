@@ -82,6 +82,15 @@ error above is unchanged (it just now reads as Arial-vs-isocp rather than stroke
 data is untouched and AutoCAD still opens the sheet with the real isocp.shx. The full fix remains
 the SHX reader.
 
+Measured source-vs-generated plot (SCD-001, both A3, build 0.077): the source PDF carries 15,168
+vector line segments and 32 extractable words (its copyright note only); the generated PDF carries
+595 segments and 88 extractable words (all schematic labels and title-block fields). The source's
+segment count is ~25x ours purely because its SHX text is drawn as stroke geometry (~14,960 of those
+segments are glyph strokes; only ~206 are real linework), while the Arial-substituted text is embedded
+font glyphs (0 segments) and the generated 595 segments are the real linework. So the generated plot
+is not missing linework -- and it is searchable and selectable, which the source plot is not. The
+remaining difference is glyph shape and advance width, which only the SHX reader closes.
+
 ## Why it is not a quick patch
 
 Closing it means reading the SHX shape/metric format (a public Autodesk format spec) and giving
