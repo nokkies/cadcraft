@@ -55,10 +55,42 @@ font crate's own metric, which is authoritative:
   edge (the trailing gap is dropped on the last glyph, `crates/fonts/src/complex.rs:125`) is
   `93.33 − (1.6/6.0 × 10)` = **90.67 units**.
 
-AutoCAD's `txt.shx`/`isocp.shx` 'A' advance is about 0.6 em (a narrower single-stroke shape font),
-so the same string at the same height is roughly **1.55× wider** in cadcraft. The error is linear
-in character count, which is why a short wire label is a few tenths off but a long title-block
-caption drifts by a full cell width.
+### Verified empirically, not just derived from the source
+
+The arithmetic above was checked against a render rather than trusted. Rendering single-char runs of
+`A` at height 10, width factor 1.0, style font `isocp.shx`, and measuring the drawn extents:
+
+| run | drawn width (units) |
+|---|---|
+| 1 × `A` | 6.667 |
+| 5 × `A` | 44.000 |
+| 10 × `A` | 90.667 |
+
+Fitting `width(n) = n·w + (n−1)·g` gives `w = 6.667` and `g = 2.6663` from the 10-run and `2.6663`
+independently from the 5-run — agreement to four digits. Advance `= w + g = 9.3333` units at height 10,
+i.e. **0.9333 em**, and the predicted 10-character drawn width (90.67) matches the measured 90.667.
+So cadcraft's own number is confirmed, and it is stable across machines because it comes from a
+hand-coded glyph table.
+
+### What is NOT measured: the comparison against AutoCAD
+
+The claim this note originally made — that AutoCAD's `isocp.shx` 'A' advance is "about 0.6 em", making
+cadcraft roughly 1.55× wider — **is an assumption, not a measurement, and it is not measurable from the
+data available here.** It is recorded as unverified rather than repeated as fact, because an upstream
+issue carrying a fabricated comparison number is worse than one carrying a smaller true claim.
+
+Why it cannot be measured here: the reference plots (AutoCAD's own plots of the equivalent sheets)
+embed only `ArialMT`, `Calibri` and `Tahoma`, and expose about 202 extractable characters — the drawing
+text is stroke geometry with **no text layer**, so there is no per-glyph position to divide by. The
+source DWGs carry the text as entities but not the advance AutoCAD would give them.
+
+What is actually established, and enough to justify the gap on its own: cadcraft renders every `.shx`
+style in **one** hand-coded stroke font, so `isocp.shx`, `isocp2.shx` and `Romans` — three different
+fonts with different shapes and different metrics — all produce **identical** advance widths. That is
+wrong for at least two of the three whatever AutoCAD's true numbers are, and it is measurable without
+any reference. The magnitude of the error per font is the part that needs the SHX reader (or a
+reference that exposes glyph positions) to pin down.
+
 
 ## Real-world impact on the PSA sheets (measured build 0.074)
 
