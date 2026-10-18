@@ -169,6 +169,78 @@ source is a structural check, not a visual one. The gate verified *that the wind
 verified *what it shows*. The fix is to add a check that measures the plotted ink of a detail window against
 a control region of the same size, so an inset showing the whole drawing cannot pass.
 
+## Correction (build 0.109): the 25% threshold was itself a false premise — the working drawings' detail windows DO show the whole drawing
+
+The section above is right that nothing measured what a window shows, and check-detail was written to fix
+that. But its threshold was invented in the script rather than measured, and it was wrong.
+
+Measured on the SOURCE sheets, the ink inside their own detail windows as a share of the sheet total:
+
+| sheet | source share |
+|---|---|
+| GAD-001 | 54% |
+| GAD-002 | **96%** |
+| SCD-001 | 71% |
+| SCD-002 | 75% |
+| SCD-003 | 53% |
+| TMD-001 | 72% |
+| TMD-005 | 65% |
+
+The check shipped in 0.108 failed any window above **25%**. Against these numbers it would have failed
+**every source sheet in the set**, and GAD-002 by a factor of nearly four. The premise that "a detail window
+showing most of the drawing is echoing rather than detailing" is simply not what the working drawings do --
+their small window is a reduced overall view, not a zoom on a corner.
+
+So the rule became a COMPARISON rather than a threshold: plot the source and the generated sheet, measure
+the same paper rectangle in both, require the generated share to sit within 35% of the source's. That is
+"looks like the working drawings" expressed as a test, and it has no number in it that was guessed.
+
+Two things this immediately bought:
+
+1. **It discriminates, where the threshold could not.** With the erase in place the drifts are 3%, 4%, 5%,
+   11%, 13%, 18%, 18%, 20%, 25%, 29% and two failures at 38% and 43%. The erase is not a gross error on
+   these sheets -- the reduced overall view still lands in the same region -- so a check looking for gross
+   duplication would never have seen it either way.
+2. **It found two genuine content gaps nobody had seen.** SCD-003 (33% vs 53%) and SCD-004 (30% vs 53%)
+   carry materially less content in the detail region than their sources. These are real differences against
+   the working drawings, surfaced by a check that compares rather than asserts.
+
+**The general lesson, which is the fourth instance of the same failure in this arc:** a threshold chosen
+because it separates the case you are worried about is not a rule about the domain. Round 43 was a geometry
+predicate that behaved like a definition on the tested case; this was a share threshold that behaved like a
+specification while failing every reference example. The guard question is the same both times -- *what does
+the reference actually do?* -- and the answer has to be measured before the number is written down.
+
+## What the two failures are, and why they are not the erase
+
+The check fails SCD-003 and SCD-004. Before calling that a false alarm the erase was ruled out, because the
+erase removes the window whose rectangle is being measured and could plausibly do so on every sheet equally:
+
+* paper space differs from the source by exactly the two erased viewports on **every** sheet, not just the
+  failing two;
+* model space differs only by +16 MText (the intentional annotations), and **the extents are identical**
+  (SCD-003: x 40..625 y 130..560 on both sides);
+* the content viewport 30F5 is byte-identical to the source's on both sheets (center 420,322, size 811x524,
+  viewCenter 420,322, viewHeight 524).
+
+The decisive measurement is the ratio *inside the detail region* against the ratio *for the whole sheet*:
+
+| sheet | detail-region ink gen/src | whole-sheet ink gen/src |
+|---|---|---|
+| SCD-001 | 0.470 | 0.576 |
+| SCD-003 | **0.383** | 0.620 |
+
+SCD-001's two ratios are close, so its detail region is simply a fair sample of a sheet that plots lighter
+overall. SCD-003's detail-region ratio is well below its sheet ratio, which is what a **local** shortfall
+looks like: something in that region of the source is not being reproduced. That is a real fidelity gap, and
+it is the first time this arc has measured one in the detail region rather than in the sheet as a whole.
+
+Both sheets plot at roughly 0.6 of the source's total ink, which is a separate standing question -- why the
+generated plot carries about 60% of the reference's stroke count at all -- and it is the obvious next thing
+to chase, since it applies to all twelve.
+
+
+
 
 ## The geometry derivation does NOT work — tried and reverted (build 0.104)
 
