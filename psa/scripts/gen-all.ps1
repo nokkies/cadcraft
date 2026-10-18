@@ -175,7 +175,15 @@ $audits = @('audit-layers', 'audit-sheet-space', 'audit-textstyles', 'audit-bloc
 # check-sheetink compares a whole plotted sheet's ink against its source. It exists because build 0.115 froze
 # six content layers inside a generated sheet's content viewport, removed about 40% of the drawing, and
 # check-f2, check-f5, check-f6, check-detail and check-textheights all passed it. Eleven sheets plot at
-# exactly 1.0000 of their source; GAD-001 plots at 2.0087, the TrueType balloon defect doubling its text ink.
+# exactly 1.0000 of their source; GAD-001 plots at 2.0087 -- its balloon text renders at the size that matches
+# its circles while the source plots that text far too small (a source-data trait, not a defect; see the
+# accepted-exceptions block below and psa/pr/true-type-attribute-scale.md).
+#
+# Fields swept and found clean (so the next round does not re-derive them): rotation (build 0.123) -- every
+# model-space entity on all twelve sheets is axis-aligned, zero rotated entities, so there is nothing to
+# mismatch; per-entity lineweight is not exposed by the `entities` command and is covered indirectly by
+# check-sheetink's total-ink measurement. Round 57 already cleared Line (layer+colour only), Circle
+# (centre+radius) and MText.lineSpacing (1.0 everywhere).
 $checks = @('check-detail', 'check-textheights', 'check-sheetink', 'check-mtextwidth')
 foreach ($a in ($checks + $audits)) {
     $out = (& pwsh -NoProfile -File (Join-Path $s ($a + '.ps1')) 2>&1 | Out-String)
