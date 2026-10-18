@@ -13,6 +13,36 @@
 #
 # This is a size heuristic, not the eyeball check. The plot is the check and the twelve sheets are
 # viewed with yes/no answers at M4-F5. Exit 0 when every sheet plots with content, 1 otherwise.
+#
+# What the heuristic can and cannot see, since a passing proxy invites over-trust.
+#
+# It CAN see: nothing being drawn at all. That is the defect it was written for and it is the right shape
+# for a byte count -- an empty sheet is the template's border and title block and nothing else, so its plot
+# sits near the baseline. check-f5, on the same plot path, was proven to bite: two different sheet names
+# given identical content came back "identical plot to ..." and exited 1.
+#
+# It CANNOT see: content that is drawn but wrong. Two specific blind spots, both measured rather than
+# assumed. (a) Placement -- a sheet framed off-screen, scaled to a speck, or duplicated still carries well
+# over baseline+5000 bytes, because byte size is indifferent to where the ink is. (b) Partial emptiness --
+# freezing six content layers inside the content viewport (0, 1T, 3C, 3T, 25C and the stamp layer) on
+# SCD-001 still plotted 53,308 bytes against 63,557 unfrozen, comfortably above baseline+5000, and
+# check-f2 PASSED it. That is a sheet that lost roughly a fifth of its plotted bytes and about 40% of its
+# ink items (9,018 against 15,274).
+#
+# (b) is a real coverage gap, not a documentation footnote, and it is not covered by the neighbours either.
+# The same frozen sheet was run against every check that could plausibly see it: check-f2 PASS, check-f5
+# PASS, check-f6 PASS, check-detail PASS (detail window 94% of ink against a source at 71%, a 32% drift
+# inside the 35% tolerance), check-textheights PASS. Only check-f7 caught it, and by entity count rather
+# than by appearance. So a sheet can lose a large fraction of its drawing and the plot-side checks let it
+# through, because each measures a quantity that freezing layers happens not to move much: bytes, hashes,
+# viewport framing, a ratio inside a generous band, text sizes.
+#
+# What would close it is a whole-sheet ink comparison against the source, the same shape as check-detail but
+# over the entire page rather than the detail window -- check-detail already computes both numbers, so the
+# data is there. It is deliberately not added here: check-detail's own first version was rejected at build
+# 0.109 for asserting a threshold nobody had measured against the reference, and a whole-sheet tolerance
+# would need the same measurement before it can be written down. Recorded as the next thing to do, with the
+# frozen sheet as its negative test.
 
 [CmdletBinding()]
 param(
@@ -97,7 +127,10 @@ $baseline = Get-LayoutPlotBytes -Drawing $tpl -Layout $tplLayout -OutBase (Join-
 if ($baseline -lt 0) { throw 'could not plot the template for the empty baseline' }
 Write-Host "empty baseline (template plot): $baseline bytes"
 
-$sheets = Get-ChildItem -LiteralPath $OutDir -Filter '*.dwg' | Sort-Object Name
+# Wrapped in @(): with ONE sheet in the directory the pipeline returns a bare FileInfo, and StrictMode 3.0
+# rejects .Count on it. check-f2 had never been run against a single-sheet directory before build 0.115, so
+# this sat latent -- it only ever ran through gen-all, on all twelve.
+$sheets = @(Get-ChildItem -LiteralPath $OutDir -Filter '*.dwg' | Sort-Object Name)
 if ($sheets.Count -eq 0) { throw "no sheets in $OutDir" }
 
 $failCount = 0

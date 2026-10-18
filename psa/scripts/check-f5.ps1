@@ -107,7 +107,9 @@ $tplHash = (Get-FileHash -LiteralPath $tplPdf -Algorithm SHA256).Hash
 $tplBytes = (Get-Item -LiteralPath $tplPdf).Length
 Write-Host "template plot (empty frame): $tplBytes bytes, sha256 $($tplHash.Substring(0,12))..."
 
-$sheets = Get-ChildItem -LiteralPath $OutDir -Filter '*.dwg' | Sort-Object Name
+# Wrapped in @(): with ONE sheet in the directory the pipeline returns a bare FileInfo, and StrictMode 3.0
+# rejects .Count on it. Same latent bug as check-f2 -- both only ever ran through gen-all, on all twelve.
+$sheets = @(Get-ChildItem -LiteralPath $OutDir -Filter '*.dwg' | Sort-Object Name)
 if ($sheets.Count -eq 0) { throw "no sheets in $OutDir" }
 
 $hashes = @{}
