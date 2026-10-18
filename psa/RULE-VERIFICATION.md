@@ -8,14 +8,30 @@ was violated on a throwaway copy, the bad state **read back** to confirm it land
 |---|---|---|---|---|
 | `attribute-present` | TB4 (`DWG_TITLE`) | blanked the attribute | read back `''` | `FAIL TB4 no attribute with tag DWG_TITLE`, exit 1 |
 | `attribute-equals-filename` | TB2 (`DWG_NO`) | copy renamed `tiny.dwg` | n/a | `FAIL TB2 DWG_NO='<the sheet number>' != 'tiny'`, exit 1 |
-| `text-height-min` | TX1 (min 2.5) | added `TINY` at height 0.4 | read back `0.4` | `FAIL TX1 1 text(s) below 2.5 (e.g. 'TINY'=0.4)`, exit 1 |
-| `draft-stamp-present` | ST1 | erased the two stamp texts | read back 0 remaining | `FAIL ST1 no text equals 'NOT FOR CONSTRUCTION'`, exit 1 |
-| `layers-only-from` | LY1 | not tested | — | unverified |
-| `cross-reference-exists` | XR1 | not tested | — | unverified |
+| `text-height-min` | TX1 (min 2.5) | added a text at height 0.4 | read back `0.4` | `FAIL TX1 1 text(s) below 2.5`, exit 1 |
+| `draft-stamp-present` | ST1 | erased the two stamp texts | read back 0 remaining | `FAIL ST1 no text equals the stamp`, exit 1 |
+| `layers-only-from` | LY1 | created layer `ZZ-NOTALLOWED` | read back: present in the layer table | `FAIL LY1 layers not in list: ZZ-NOTALLOWED`, exit 1 |
+| `cross-reference-exists` | XR1 | added `REFER DRG. <a number not in the inventory>` | read back: text present | `FAIL XR1 refs to unknown drawings: <that number>`, exit 1 |
 
-Four of six kinds proven. LY1 and XR1 remain unverified; they are the two that need a layer outside the
-allow-list and a dangling drawing reference respectively, neither of which is quick to inject without
-editing `rules.json` itself.
+**All six kinds proven.** Every bad state was read back before the checker was run, so no result below
+rests on a violation that silently failed to land.
+
+## XR1 also passes a valid reference
+
+A rule that always fails is as useless as one that never fails, so XR1 got a positive control as well:
+the same text with a drawing number taken from the inventory produced `PASS XR1`. It discriminates rather
+than rejects everything. (The run still exited 1, correctly, on TB2 — the copy's file name no longer
+matched its own number.)
+
+## What each kind actually reads
+
+- `attribute-present` / `attribute-equals-filename` / `text-height-min` / `draft-stamp-present` read the
+  captured texts JSON, paper space first then model.
+- `layers-only-from` reads the **layer table** from the info JSON, not the layers entities sit on. cadcraft's
+  `info` lists the layer TABLE, and a layer used by an entity but missing from the table cannot exist.
+- `cross-reference-exists` applies `pattern`'s capture group to every text and looks the result up in the
+  inventory CSV.
+
 
 ## Two things this corrected in my own reading
 
