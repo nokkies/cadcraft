@@ -128,6 +128,27 @@ foreach ($n in @($Project.sheets | Sort-Object)) {
         if ($a -ne $b -and $t -ne 'MText' -and $t -ne 'Text') { $unexpected += ('model ' + $t + ' ' + $a + '->' + $b) }
     }
 
+    # --- paper space texts: content matters, not just the count ---
+    # Counts alone let a stamp read the wrong words, so paper space gets the same content diff as model
+    # space. Proven necessary: with a stamp replaced by a different word at the SAME entity count, a
+    # counts-only comparison reported the sheet as matching.
+    $spt = Get-TextKeyMap -Ents $sPaper
+    $gpt = Get-TextKeyMap -Ents $gPaper
+    $pMissingLayers = @{}
+    $pMissing = 0
+    foreach ($k in $spt.Keys) {
+        $b2 = 0; if ($gpt.ContainsKey($k)) { $b2 = $gpt[$k] }
+        $d = $spt[$k] - $b2
+        if ($d -gt 0) {
+            $pMissing += $d
+            $lay = $k.Split('|')[0]
+            if ($pMissingLayers.ContainsKey($lay)) { $pMissingLayers[$lay] += $d } else { $pMissingLayers[$lay] = $d }
+        }
+    }
+    if ($pMissing -gt 0) {
+        $unexpected += ('paper text missing on ' + (($pMissingLayers.Keys | Sort-Object) -join ',') + ' (' + $pMissing + ')')
+    }
+
     # --- model space texts: additions allowed (D4/D3 annotations); missing source texts are a defect ---
     $st = Get-TextKeyMap -Ents $sModel
     $gt = Get-TextKeyMap -Ents $gModel
