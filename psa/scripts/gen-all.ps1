@@ -165,7 +165,13 @@ $audits = @('audit-layers', 'audit-sheet-space', 'audit-textstyles', 'audit-bloc
 # does. It exists because builds 0.106/0.107 restored the template's detail window and the whole gate went
 # green while every plot carried roughly twice the source's ink -- every other check verified that a window
 # exists and how many there are, none looked at the ink inside one.
-$checks = @('check-detail')
+#
+# check-textheights measures the height every text RENDERS at. audit-textstyles compares the style table and
+# audit-blocks compares block scales and attribute values; both stayed green on GAD-001 while its balloon
+# tags were 2.5mm in the source and 15.0mm in the generated sheet. The height that renders lives on the
+# attribute's own text properties, in the seam between the two audits. It currently fails GAD-001, which is
+# the true state of that sheet, recorded rather than hidden -- see psa/pr/true-type-attribute-scale.md.
+$checks = @('check-detail', 'check-textheights')
 foreach ($a in ($checks + $audits)) {
     $out = (& pwsh -NoProfile -File (Join-Path $s ($a + '.ps1')) 2>&1 | Out-String)
     $last = (($out -split "`r?`n" | Where-Object { $_ -match '\S' } | Select-Object -Last 1))
@@ -173,10 +179,18 @@ foreach ($a in ($checks + $audits)) {
     else { Write-Host "[$a] PASS  $last" }
 }
 
+# Known accepted exceptions, named so that a NEW failure is never mistaken for a standing one. Each is a
+# true positive recording an open question, not a regression:
+#   SCD-002 TX1        the 2.0mm terminal text below the 2.5mm rule minimum -- Reinach's open D8 question.
+#   GAD-001 textheights  balloon tags render at 15.0mm against a 2.5mm source, because the TrueType style
+#                      ISOCP multiplies the enclosing INSERT scale into the attribute height where the SHX
+#                      path does not. Measured and written up in psa/pr/true-type-attribute-scale.md; it is
+#                      a cadcraft rendering defect, not something the generator can set differently.
+# A check that fails silently is worse than no check, so these are recorded here rather than suppressed.
 if ($fail -eq 0) {
     Write-Host 'PASS M4 pipeline (all twelve sheets generated; every check and fidelity audit green; SCD-002 TX1 is the known D8 question)'
     exit 0
 } else {
-    Write-Host 'FAIL M4 pipeline (see unexpected lines above)'
+    Write-Host 'FAIL M4 pipeline (see unexpected lines above; compare against the known accepted exceptions listed just above)'
     exit 1
 }
