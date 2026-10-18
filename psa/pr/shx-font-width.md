@@ -60,6 +60,19 @@ so the same string at the same height is roughly **1.55× wider** in cadcraft. T
 in character count, which is why a short wire label is a few tenths off but a long title-block
 caption drifts by a full cell width.
 
+## Real-world impact on the PSA sheets (measured build 0.074)
+
+This is not a corner case on these drawings: **every text on a generated sheet is affected.** On
+SCD-001 the `texts` command reports 99 text entities, and the `style` command reports that both
+styles in use (`Standard`, 97 texts; `Romans`, 2 texts) name `font:"isocp.shx"`, `trueType:false`.
+So 99/99 texts fall back to cadcraft's stroke font — the whole sheet's text is the substituted
+width, which is why the render reads "worse than the originals" end to end rather than in one spot.
+The DWG data itself is byte-faithful to the source (text content, height, and insertion identical;
+see `psa/BLOCKED.md` D10, build 0.074) — only the rendered advance widths differ. The generator
+cannot close this: switching the style to a TrueType face would both alter the drawing away from the
+source and require a font cadcraft is not permitted to ship (clean-room), so the fix is the SHX
+reader described above.
+
 ## Why it is not a quick patch
 
 Closing it means reading the SHX shape/metric format (a public Autodesk format spec) and giving
