@@ -4,6 +4,10 @@ Reinach's goal is that the generated sheets *look like* the originals, and colou
 that. Earlier checks measured ink coverage as a single percentage, which cannot tell a correct drawing
 from one where every line is the wrong colour. This compares the actual strokes.
 
+Status: **the geometry comparison holds; the mismatch explanation in this note was wrong and was
+corrected at build 0.099.** Read "Corrected at build 0.099" before quoting any number from the earlier
+sections — the 214/93 mismatch counts and the "~1.55x too wide" attribution are both obsolete.
+
 ## Method
 
 `cadcraft-cli convert` to SVG keeps each stroke's colour, width and coordinates as text, so the two
@@ -58,21 +62,57 @@ its larger content.
 
 Nine of twelve sheets have **zero** mismatches above 5 units.
 
-## What the large mismatches are
+## What the large mismatches were
 
-GAD-001's 214 and SCD-002's 93 are not lost geometry. For GAD-001, **all 214 have their exact shape
-present in the generated file — only their position differs, and none is missing**. They are magenta
-(text), span exactly 9.0 units, and sit at evenly spaced x positions (410.3, 422.6, 429.5, 440.9, 452.3,
-462.2, 472.1 — about 11 apart).
+This section records a measurement that **has since been overtaken by a fix**, kept because the numbers
+below were true when written and the reasoning is what matters.
 
-Correct glyph shapes at slightly wrong spacing is **character advance width**: the defect documented in
-`shx-font-width.md`, now confirmed geometrically rather than by counting words. cadcraft substitutes a
-stroke font for SHX; the glyphs are right, the spacing between them is ~1.55x too wide.
+At build 0.088, GAD-001's 214 and SCD-002's 93 were not lost geometry: **all of them had their exact
+shape present in the generated file — only their position differed, and none was missing**. They were
+magenta (text layer), spanned about 9.0 units, and sat at evenly spaced x positions (410.3, 422.6, 429.5,
+440.9, 452.3, 462.2, 472.1 — about 11 apart).
+
+Correct glyph shapes at wrong spacing is **character advance width**. At the time this was attributed to
+the SHX substitution in `shx-font-width.md` and described as "~1.55x too wide".
+
+## Corrected at build 0.099: the cause was the style width factor, and it is fixed
+
+Both halves of that attribution were wrong, and re-measuring after build 0.090 shows it.
+
+**The cause was not SHX substitution.** The mismatched glyphs are the balloon tags, whose text uses style
+`ISOCP` → `tahoma.ttf` — a TrueType face cadcraft renders natively, never substituted. (The same
+investigation found these glyphs are emitted as filled `<path>` outlines rather than `<polyline>`
+strokes, which is why the colour audit had not been comparing them at all until build 0.095.)
+
+**The magnitude was never measured.** "~1.55x" came from an assumed AutoCAD advance of 0.6 em, which is
+not measurable from the reference plots — they embed only TrueType fonts and expose no text layer for the
+drawing text. See `shx-font-width.md`, "What is NOT measured".
+
+**The real cause was build 0.090's fix.** `place_text_entity` in `crates/render/src/lib.rs` was ignoring
+the text *style's* width factor and using only the entity's own, while `layout_mtext_entity` already read
+`ts.width_factor`. Text styles carry a width factor — the template's `Romans` style is 0.9 — so TEXT and
+ATTRIB rendered at the wrong horizontal scale. Fixed at `lib.rs:1298-1301`, pinned by
+`crates/render/tests/text_style_width_factor.rs`.
+
+**Re-measured after the fix.** In the x band the note cites, magenta glyph strokes now start at:
+
+| | x positions of glyph-stroke starts |
+|---|---|
+| source | 402.0, 404.3, 406.7, 410.0, 411.0 |
+| generated | 402.0, 404.4, 406.8, 410.0, 411.0 |
+
+Agreement to about 0.1 units. Re-running the shape comparison over the whole sheet now finds **zero**
+mismatches of 5 units or more whose shape is absent from the generated file — the 214 and 93 are gone.
+`audit-colours.ps1` passes on all twelve sheets.
+
 
 ## Conclusion
 
-Sheet geometry, colour and stroke width are exact. Every difference is a text glyph, either tessellated
-slightly differently or spaced by the wrong advance width — the one documented SHX substitution.
+Sheet geometry, colour and stroke width are exact. The position-only mismatches found at build 0.088
+were a text-style width factor being ignored for TEXT and ATTRIB, fixed at build 0.090, and are no longer
+present. The one remaining text difference on these sheets is glyph *shape* for `.shx` styles, which
+cadcraft renders in a single built-in stroke font — see `shx-font-width.md` for what is and is not
+measured about that.
 
 ## The lessons, for the next comparison
 

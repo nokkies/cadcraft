@@ -92,18 +92,30 @@ any reference. The magnitude of the error per font is the part that needs the SH
 reference that exposes glyph positions) to pin down.
 
 
-## Real-world impact on the PSA sheets (measured build 0.074)
+## Real-world impact on the PSA sheets (re-measured build 0.099)
 
-This is not a corner case on these drawings: **every text on a generated sheet is affected.** On
-SCD-001 the `texts` command reports 99 text entities, and the `style` command reports that both
-styles in use (`Standard`, 97 texts; `Romans`, 2 texts) name `font:"isocp.shx"`, `trueType:false`.
-So 99/99 texts fall back to cadcraft's stroke font — the whole sheet's text is the substituted
-width, which is why the render reads "worse than the originals" end to end rather than in one spot.
-The DWG data itself is byte-faithful to the source (text content, height, and insertion identical;
-see `psa/BLOCKED.md` D10, build 0.074) — only the rendered advance widths differ. The generator
-cannot close this: switching the style to a TrueType face would both alter the drawing away from the
-source and require a font cadcraft is not permitted to ship (clean-room), so the fix is the SHX
-reader described above.
+This is close to a whole-sheet issue, but **not** the whole sheet, and an earlier version of this note
+overstated it as "every text on a generated sheet is affected". Counted across all twelve generated
+sheets, by the font each text's style names:
+
+| style font | texts | rendered how |
+|---|---|---|
+| `.shx` (`isocp`, `isocp2`, `romans`, `ISO3098B`) | 1087 | substituted stroke font — advance widths are cadcraft's |
+| `.ttf` (`arial`, `tahoma`, `trebuc`, `monos`) | 25 | native TrueType outlines, correct advance |
+
+So **1087 of 1112 texts (97.8%)** fall back to the stroke font — nearly all of it, which is why the
+substitution dominates the look of a sheet, but the TrueType minority is rendered correctly and is not
+affected. The template's ten styles split the same way on every sheet: seven name a font with no `.ttf`
+extension and three do.
+
+The DWG data itself is byte-faithful to the source (text content, height, and insertion identical; see
+`psa/BLOCKED.md` D10, build 0.074) — only the rendered advance widths differ. The generator cannot close
+this: switching the style to a TrueType face would both alter the drawing away from the source and require
+a font cadcraft is not permitted to ship (clean-room), so the fix is the SHX reader described above.
+
+Note that the balloon-tag glyphs discussed in `colour-stroke-fidelity.md` are in the **TrueType** row
+above (style `ISOCP` → `tahoma.ttf`), so the mismatches recorded there were never an SHX effect. That
+note's attribution is corrected at build 0.099.
 
 **Mitigation shipped (build 0.076, generation side).** cadcraft's `TextFont::resolve` already
 renders an unfindable font (an SHX file) in the `FONTALT` face when one is set. The PSA scripts now
