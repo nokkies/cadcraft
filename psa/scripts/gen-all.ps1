@@ -137,6 +137,13 @@ $f6Last = (($f6 -split "`r?`n" | Where-Object { $_ -match '\S' } | Select-Object
 if ($LASTEXITCODE -ne 0) { Write-Host "[check-f6] FAIL  $f6Last"; $fail = 1 }
 else { Write-Host "[check-f6] PASS  $f6Last" }
 
+# M4-C19: each generated sheet is content-complete against its source (entity types, text presence,
+# text heights) -- guards against a silent regression that drops or alters source content.
+$f7 = (& pwsh -NoProfile -File (Join-Path $s 'check-f7.ps1') 2>&1 | Out-String)
+$f7Last = (($f7 -split "`r?`n" | Where-Object { $_ -match '\S' } | Select-Object -Last 1))
+if ($LASTEXITCODE -ne 0) { Write-Host "[check-f7] FAIL  $f7Last"; $fail = 1 }
+else { Write-Host "[check-f7] PASS  $f7Last" }
+
 if ($fail -eq 0) {
     Write-Host 'PASS M4 pipeline (all twelve sheets generated; every check green; SCD-002 TX1 is the known D8 question)'
     exit 0
