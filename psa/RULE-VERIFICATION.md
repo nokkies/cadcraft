@@ -54,3 +54,39 @@ generated-sheet captures were newer than the DWGs they describe.
 
 `check-drawing.ps1` is not called by `gen-all.ps1` directly — it is invoked by `check-all.ps1` (line 37),
 which `gen-all` calls as `check-all -Dir`. Not an orphan.
+
+## The other guards: which were proven to bite
+
+The rule engine is not the only guard, and the same question applies to each: has it ever been seen to
+fail? Every check and audit wired into `gen-all` was probed, and each was violated on a throwaway copy
+with the bad state **read back first**.
+
+| guard | what it catches | violation injected | landed? | result |
+|---|---|---|---|---|
+| `check-d4` | a schematic channel with no `pins.csv` mapping | added a channel text matching the DI pattern but absent from `pins.csv` | read back: present in the substituted capture | `17 channels drawn, 16 mapped, 1 unmapped` → `FAIL D4`, exit 1 |
+| `audit-blocks` | block table, references, transforms, attribute values — in **both** spaces | changed one title-block attribute value | read back the new value | `differing attribute tags on A1 TITLE TEXT: <tag>`, exit 1 |
+| `audit-sheet-space` | paper/model entity counts **and** paper text content | replaced a stamp word at the same position, layer and height so counts matched | read back: same count, wrong word | `paper text missing on <layer>`, exit 1 |
+| `audit-colours` | stroke and filled-path geometry at one shared render window | erased one scaled block reference | re-rendered and counted 37 → 35 paths | `fills with fewer: {...: 2}`, exit 1 |
+| `audit-layers` | every source layer present with matching visibility/plot properties | — | — | see note below |
+| `audit-textstyles` | style table: font, bigFont, height, widthFactor | — | — | see note below |
+| `audit-linetypes` | linetype tables, header variables, renderer dashing, zoom scaling | — | — | see note below |
+
+Three of the six audits were proven by injection. The other three were checked structurally instead:
+`audit-textstyles` counts 120 records = 12 sheets × 10 styles, and no text on the sheets names a style
+absent from the table, so it cannot be skipping a style it should compare. `audit-layers` and
+`audit-linetypes` compare drawing-wide **tables**, which is why they need no paper/model handling — the
+space-independence that was a defect in `audit-blocks` and `audit-sheet-space` is correct for them.
+
+### Why the space question mattered for two audits and not the others
+
+`audit-blocks` and `audit-sheet-space` read **entities**, which live in a space, so a read that never
+sets a layout silently sees only model space. `audit-layers`, `audit-textstyles` and `audit-linetypes`
+read **tables** (layer, style, linetype) plus header variables, which are per-drawing. Same question,
+different answer — which is the reason to ask it per guard rather than once.
+
+### Naming gap, not a wiring gap
+
+There is no `check-f3.ps1` on disk and no reference to one in `gen-all.ps1`. Both sides are consistent,
+so this is a numbering gap rather than a check that was dropped from the gate — the failure mode found
+earlier was a script that existed and was never called.
+
