@@ -208,8 +208,32 @@ if ($sheetKind -ne 'card') {
 }
 
 # --- signals for this station ------------------------------------------------------
-$sig = @(Import-Csv -LiteralPath $SignalsCsv | Where-Object { $_.Station -eq $station })
-if ($sig.Count -eq 0) { Write-Warning "no I/O rows for station '$station'" }
+# The register and the I/O list name the same panel differently: the register says "CEP REMOTE I/O"
+# and "BUS 1", the I/O workbook's tab (and so the normalised table) says "CEP" and
+# "SSHHC_BUS_1". Matching on the literal string finds no rows and produces an empty sheet without
+# complaining, so both spellings are reduced to the same key before comparison.
+function Norm-Station([string]$s) {
+    if ($null -eq $s) { return '' }
+    $t = ($s.ToUpperInvariant() -replace '[^A-Z0-9]', '')
+    $t = $t -replace 'REMOTEIO$', ''
+    return $t
+}
+$sigAll = @(Import-Csv -LiteralPath $SignalsCsv)
+# Group with a List, then convert the whole table to arrays in one pass. Values must be plain arrays
+# where they are read: @($hashTable[$k]) on a stored List[object] throws "Argument types do not
+# match" on this PowerShell version, and this is on the path of every sheet.
+$sigLists = @{}
+foreach ($s in $sigAll) {
+    $k = Norm-Station ([string]$s.Station)
+    if (-not $sigLists.ContainsKey($k)) { $sigLists[$k] = New-Object System.Collections.Generic.List[object] }
+    $sigLists[$k].Add($s)
+}
+$sigByStation = @{}
+foreach ($k in $sigLists.Keys) { $sigByStation[$k] = @($sigLists[$k].ToArray()) }
+$sigKey = Norm-Station $station
+$sig = @()
+if ($sigByStation.ContainsKey($sigKey)) { $sig = $sigByStation[$sigKey] }
+if ($sig.Count -eq 0) { Write-Warning "no I/O rows for station '$station' (key '$sigKey')" }
 
 # Which signals belong on THIS sheet.
 #
