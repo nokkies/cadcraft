@@ -32,7 +32,7 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $files = @(
     'scripts/xlsx-dump.ps1', 'scripts/io-normalise.ps1', 'scripts/sheets-plan.ps1',
-    'scripts/gen-tmd-data.ps1', 'scripts/gen-pack.ps1', 'scripts/check-pack.ps1'
+    'scripts/gen-tmd-data.ps1', 'scripts/gen-gad-data.ps1', 'scripts/gen-pack.ps1', 'scripts/check-pack.ps1'
 ) | ForEach-Object { Join-Path $root $_ }
 
 if (-not $Substitutions) {

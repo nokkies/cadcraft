@@ -83,22 +83,35 @@ foreach ($row in $sel) {
     $rev = [string]$row.Revision
     if (-not $rev) { $rev = 'A' }
     $outDwg = Join-Path $OutDir ($num + '_' + $rev + '.dwg')
+    # The generator depends on the discipline. TMD builds a termination table from the I/O list; GAD
+    # builds a placement diagram from the order schedule. SCD (a wired schematic) has no producer yet.
     $gen = Join-Path $sheetsDir 'gen-tmd-data.ps1'
+    if ($Discipline -eq 'GAD') { $gen = Join-Path $sheetsDir 'gen-gad-data.ps1' }
 
     $args1 = @(
         '-Template', $Template,
         '-OutDwg', $outDwg,
         '-HardwareJson', $HardwareJson,
         '-PlanCsv', $PlanCsv,
-        '-SignalsCsv', $SignalsCsv,
         '-DrawingNumber', $num
     )
+    if ($Discipline -eq 'GAD') {
+        # A GA needs the order schedule (the modules to place), not the I/O signal table.
+        if (-not $OrderScheduleCsv -or -not (Test-Path -LiteralPath $OrderScheduleCsv)) {
+            Write-Warning "$num : GAD needs -OrderScheduleCsv; skipping"
+            continue
+        }
+        $args1 += @('-OrderScheduleCsv', $OrderScheduleCsv)
+    } else {
+        $args1 = @('-Template', $Template, '-OutDwg', $outDwg, '-HardwareJson', $HardwareJson,
+            '-PlanCsv', $PlanCsv, '-SignalsCsv', $SignalsCsv, '-DrawingNumber', $num)
+        # The comms and power sheets read the panel's line items from the order schedule.
+        if ($OrderScheduleCsv -and (Test-Path -LiteralPath $OrderScheduleCsv)) {
+            $args1 += @('-OrderScheduleCsv', $OrderScheduleCsv)
+        }
+    }
     if ($ProjectNumber) { $args1 += @('-ProjectNumber', $ProjectNumber) }
     if ($Scope1) { $args1 += @('-Scope1', $Scope1) }
-    # The comms and power sheets read the panel's line items from the order schedule.
-    if ($OrderScheduleCsv -and (Test-Path -LiteralPath $OrderScheduleCsv)) {
-        $args1 += @('-OrderScheduleCsv', $OrderScheduleCsv)
-    }
 
     $out = ''
     $code = 1

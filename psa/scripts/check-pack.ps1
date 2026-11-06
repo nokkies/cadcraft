@@ -135,12 +135,22 @@ function Add-Result([string]$num, [string]$id, [string]$status, [string]$detail)
 $placed = @{}
 $duplicate = New-Object System.Collections.Generic.List[string]
 
+# Which discipline each sheet belongs to, from the plan. The checks below are written for termination
+# diagrams; a general arrangement is a placement diagram drawn at a scale (its model coordinates run
+# past the paper-unit sheet bounds by design, and it carries no I/O channel rows), so the TMD-only
+# checks must not be applied to it.
+$discByNumber = @{}
+foreach ($pr in $plan) { $discByNumber[[string]$pr.Number] = [string]$pr.Discipline }
+
 foreach ($m in $manifest) {
     $num = [string]$m.Number
     $dwg = [string]$m.Dwg
     $station = [string]$m.Station
     $card = [string]$m.Card
     $order = [string]$m.Order
+    $disc = ''
+    if ($discByNumber.ContainsKey($num)) { $disc = $discByNumber[$num] }
+    $isTmd = ($disc -eq 'TMD')
 
     if (-not $dwg -or -not (Test-Path -LiteralPath $dwg)) {
         Add-Result $num 'P1' 'FAIL' 'no dwg written'
@@ -205,6 +215,7 @@ foreach ($m in $manifest) {
         }
     }
     if ($outside -eq 0) { Add-Result $num 'P4' 'PASS' 'all model points inside the sheet area' }
+    elseif (-not $isTmd) { Add-Result $num 'P4' 'PASS' "placement diagram drawn at scale (model points past the paper-unit bounds is expected)" }
     else { Add-Result $num 'P4' 'FAIL' "$outside point(s) outside $sheetMinX..$sheetMaxX / $sheetMinY..$sheetMaxY" }
 
     # P6: the sheet's row count matches the manifest's claim.
@@ -275,7 +286,9 @@ foreach ($m in $manifest) {
     # every address-shaped text on the sheet. A field audit commonly records the wire number as the
     # channel address (Wire No. = "I0.0" for I0.0), so a text scan counted one channel as two and
     # reported over a thousand phantom duplicates.
-    if (([string]$m.Verified) -ne '' -or $order) {
+    # P5 bookkeeping: record every address this sheet placed. Only a termination diagram carries I/O
+    # channel rows; a placement diagram's text is module names and notes, so it is skipped.
+    if ($isTmd -and (([string]$m.Verified) -ne '' -or $order)) {
         $skey = Norm-Station $station
         foreach ($t in $modelTexts) {
             $txt = [string]$t.text
@@ -293,8 +306,11 @@ foreach ($m in $manifest) {
     }
 }
 
-# P5: every station's signals should be placed exactly once across its sheets.
+# P5: every station's signals should be placed exactly once across its sheets. Only meaningful when
+# the manifest contains termination diagrams; a GAD manifest places no channel rows.
+$hasTmd = @($manifest | Where-Object { $n = [string]$_.Number; $discByNumber.ContainsKey($n) -and $discByNumber[$n] -eq 'TMD' }).Count -gt 0
 $planStations = @($manifest | ForEach-Object { [string]$_.Station } | Where-Object { $_ } | Sort-Object -Unique)
+if (-not $hasTmd) { $planStations = @() }
 foreach ($st in $planStations) {
     $skey = Norm-Station $st
     $want = @($sig | Where-Object { (Norm-Station ([string]$_.Station)) -eq $skey })
@@ -314,12 +330,17 @@ if ($duplicate.Count -gt 0) {
     Add-Result 'PACK' 'P5' 'FAIL' "$($duplicate.Count) address(es) placed twice: " + (($duplicate | Select-Object -First 5) -join ' | ')
 }
 
-# P10: coverage against the plan.
-$tmdPlan = @($plan | Where-Object { $_.Discipline -eq 'TMD' })
+# P10: coverage against the plan. Check the discipline actually in this manifest, not a fixed TMD:
+# a GAD manifest should be measured against the GAD rows, or it reports every TMD sheet as missing.
+$madeDisc = @($manifest | ForEach-Object { $n = [string]$_.Number; if ($discByNumber.ContainsKey($n)) { $discByNumber[$n] } } | Where-Object { $_ } | Sort-Object -Unique)
+if ($madeDisc.Count -eq 0) { $madeDisc = @('TMD') }
 $madeNums = @($manifest | ForEach-Object { [string]$_.Number })
-$notMade = @($tmdPlan | Where-Object { $n = [string]$_.Number; -not ($madeNums | Where-Object { $_ -eq $n }) })
-if ($notMade.Count -eq 0) { Add-Result 'PACK' 'P10' 'PASS' "all $($tmdPlan.Count) planned TMD sheets generated" }
-else { Add-Result 'PACK' 'P10' 'FAIL' "$($notMade.Count) planned sheets not generated (e.g. " + (($notMade | Select-Object -First 6 | ForEach-Object { $_.Number }) -join ',') + ')' }
+foreach ($dc in $madeDisc) {
+    $dcPlan = @($plan | Where-Object { $_.Discipline -eq $dc })
+    $notMade = @($dcPlan | Where-Object { $n = [string]$_.Number; -not ($madeNums | Where-Object { $_ -eq $n }) })
+    if ($notMade.Count -eq 0) { Add-Result 'PACK' 'P10' 'PASS' "all $($dcPlan.Count) planned $dc sheets generated" }
+    else { Add-Result 'PACK' 'P10' 'FAIL' "$($notMade.Count) planned $dc sheets not generated (e.g. " + (($notMade | Select-Object -First 6 | ForEach-Object { $_.Number }) -join ',') + ')' }
+}
 
 # --- report ------------------------------------------------------------------------
 $fails = @($results | Where-Object { $_.Status -eq 'FAIL' })
