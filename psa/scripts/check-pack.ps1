@@ -333,13 +333,19 @@ if ($duplicate.Count -gt 0) {
 # P10: coverage against the plan. Check the discipline actually in this manifest, not a fixed TMD:
 # a GAD manifest should be measured against the GAD rows, or it reports every TMD sheet as missing.
 $madeDisc = @($manifest | ForEach-Object { $n = [string]$_.Number; if ($discByNumber.ContainsKey($n)) { $discByNumber[$n] } } | Where-Object { $_ } | Sort-Object -Unique)
-if ($madeDisc.Count -eq 0) { $madeDisc = @('TMD') }
 $madeNums = @($manifest | ForEach-Object { [string]$_.Number })
+if ($madeDisc.Count -eq 0) {
+    # No manifest number is a register row -- this is a paginated list (LST) whose pages carry a page
+    # suffix, not a discipline the plan tracks. Coverage is measured by the list driver's own manifest
+    # (rows shown vs source rows), so P10 is not applicable here; say so rather than fall back to TMD.
+    Add-Result 'PACK' 'P10' 'PASS' 'list/paginated sheets - coverage measured against the source rows, not the register plan'
+} else {
 foreach ($dc in $madeDisc) {
     $dcPlan = @($plan | Where-Object { $_.Discipline -eq $dc })
     $notMade = @($dcPlan | Where-Object { $n = [string]$_.Number; -not ($madeNums | Where-Object { $_ -eq $n }) })
     if ($notMade.Count -eq 0) { Add-Result 'PACK' 'P10' 'PASS' "all $($dcPlan.Count) planned $dc sheets generated" }
     else { Add-Result 'PACK' 'P10' 'FAIL' "$($notMade.Count) planned $dc sheets not generated (e.g. " + (($notMade | Select-Object -First 6 | ForEach-Object { $_.Number }) -join ',') + ')' }
+}
 }
 
 # --- report ------------------------------------------------------------------------

@@ -86,12 +86,22 @@ foreach ($row in $sel) {
     # The generator depends on the discipline, and within SCD on the sheet's own title. TMD builds a
     # termination table from the I/O list; GAD builds a placement diagram from the order schedule; SCD
     # splits into a power-distribution schematic (a radial tree) and a panel earthing schematic (an
-    # earth bar with a way per earthed item), both from the order schedule's devices.
+    # earth bar with a way per earthed item), both from the order schedule's devices; CBD-002 builds a
+    # communications block diagram from the order schedule's comms devices.
     $gen = Join-Path $sheetsDir 'gen-tmd-data.ps1'
     if ($Discipline -eq 'GAD') { $gen = Join-Path $sheetsDir 'gen-gad-data.ps1' }
     elseif ($Discipline -eq 'SCD') {
         if (([string]$row.Title) -match 'POWER DISTRIBUTION') { $gen = Join-Path $sheetsDir 'gen-scd-power.ps1' }
         else { $gen = Join-Path $sheetsDir 'gen-scd-earth.ps1' }
+    }
+    elseif ($Discipline -eq 'CBD') {
+        # Only the communications block diagram is a new-design drawing; the network-architecture sheet
+        # is an as-built markup of an existing drawing and has no producer.
+        if (([string]$row.Title) -notmatch 'COMMUNICATION') {
+            Write-Host ("{0}  {1,-16} SKIPPED (as-built markup, no producer)" -f $num, [string]$row.Station)
+            continue
+        }
+        $gen = Join-Path $sheetsDir 'gen-cbd-comms.ps1'
     }
 
     $args1 = @(
@@ -101,8 +111,8 @@ foreach ($row in $sel) {
         '-PlanCsv', $PlanCsv,
         '-DrawingNumber', $num
     )
-    if ($Discipline -eq 'GAD' -or $Discipline -eq 'SCD') {
-        # A GA and both schematic kinds read the order schedule, not the I/O signal table.
+    if ($Discipline -eq 'GAD' -or $Discipline -eq 'SCD' -or $Discipline -eq 'CBD') {
+        # A GA, both schematic kinds and the comms block diagram read the order schedule, not the I/O table.
         if (-not $OrderScheduleCsv -or -not (Test-Path -LiteralPath $OrderScheduleCsv)) {
             Write-Warning "$num : $Discipline needs -OrderScheduleCsv; skipping"
             continue
