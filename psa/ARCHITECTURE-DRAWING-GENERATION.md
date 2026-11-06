@@ -35,8 +35,9 @@ agreeing.
       gen-tmd-data.ps1             termination diagram  (table, from the I/O list)
       gen-gad-data.ps1             general arrangement  (placement, from the order schedule)
       gen-scd-power.ps1            power schematic      (radial tree, from the order schedule)
+      gen-scd-earth.ps1            earthing schematic   (earth bar + ways, from the order schedule)
       |
-  gen-pack.ps1                     the loop: pick generator by discipline, manifest, per-sheet logs
+  gen-pack.ps1                     the loop: pick generator by discipline (SCD by title), manifest, logs
       |
   check-pack.ps1                   P1..P10 over the whole pack (discipline-aware)
       v
@@ -142,18 +143,15 @@ unknown instead of guessing whether the row is missing or empty. Nothing is inve
 
 ## What is produced, and what is not
 
-Three producer disciplines now exist: **termination diagrams** (`gen-tmd-data.ps1`, a table from the I/O
-list), **general arrangements** (`gen-gad-data.ps1`, a placement diagram from the order schedule), and
+Four producer disciplines now exist: **termination diagrams** (`gen-tmd-data.ps1`, a table from the I/O
+list), **general arrangements** (`gen-gad-data.ps1`, a placement diagram from the order schedule),
 **power-distribution schematics** (`gen-scd-power.ps1`, a radial AC/DC tree from the order schedule's
-power devices). On the current job that is 262 + 23 + 20 = 305 of the register's 367 sheets.
+power devices), and **panel earthing schematics** (`gen-scd-earth.ps1`, an earth bar with a way per
+earthed item). On the current job that is 262 + 23 + 35 = 320 of the register's 367 sheets, and every
+CAD discipline the register lists is produced.
 
 What is not:
 
-- **The I/O signal schematic (15 sheets).** A power-distribution schematic is a radial tree, which is
-  regular enough to produce. A signal schematic is a per-card wiring diagram: every channel wired to its
-  field device through the terminals, with the house symbols and routed wires. That needs a symbol library
-  and a layout/routing engine, not a row loop. The reproducer path proves cadcraft can draw them; the
-  producer path does not yet.
 - **The AC final circuits on the power schematic.** The breakers and what each feeds are electrical-
   distribution data, not in the automation order schedule (which lists modules, PSUs and switches). The
   power schematic draws the AC bus and states that the branch count and ratings come from the electrical
@@ -167,7 +165,14 @@ What is not:
 - **I/O rows with no tag.** Some rows carry an address and no tag. They are drawn untagged and counted in
   a note. The FDS cross-reference tables and the SCADA data tables are the next source and are not yet in
   hand.
-- **Non-CAD disciplines.** The register also lists reports, manuals, procedures, lists and schedules.
-  Those are documents, not drawings; the list-type ones are already produced as CSV by the extract step
-  and would render through the branding skills, not the CAD producers.
+- **Non-CAD disciplines.** The register also lists reports, manuals, procedures, lists and schedules
+  (REP, MAN, PRO, LST, and a few one-off types). Those are documents, not drawings; the list-type ones
+  are already produced as CSV by the extract step and would render through the branding skills, not the
+  CAD producers.
+
+A note on a wrong assumption corrected: the 15 sheets first labelled "I/O signal schematic, needs a
+routing engine" were not that. The register's "PANEL SCHEMATIC DIAGRAM" rows are earthing schematics, a
+regular bar-and-ways structure that produces cleanly. The lesson is recorded in the skill: check what the
+reference sheet actually contains before declaring a discipline unproducible.
+
 
