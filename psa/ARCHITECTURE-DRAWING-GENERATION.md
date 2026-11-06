@@ -31,11 +31,14 @@ agreeing.
       |
       |  hardware/modules.json     one definition per order number
       v
-  gen-tmd-data.ps1                 ONE sheet, from data, via cadcraft commands
+  the producers, one per discipline:
+      gen-tmd-data.ps1             termination diagram  (table, from the I/O list)
+      gen-gad-data.ps1             general arrangement  (placement, from the order schedule)
+      gen-scd-power.ps1            power schematic      (radial tree, from the order schedule)
       |
-  gen-pack.ps1                     the loop: selection, manifest, per-sheet logs
+  gen-pack.ps1                     the loop: pick generator by discipline, manifest, per-sheet logs
       |
-  check-pack.ps1                   P1..P10 over the whole pack
+  check-pack.ps1                   P1..P10 over the whole pack (discipline-aware)
       v
   the pack (DWG + PDF) and a hand-back report
 ```
@@ -137,18 +140,34 @@ unknown instead of guessing whether the row is missing or empty. Nothing is inve
 | Is the pack complete? | P10 against the register's own sheet list |
 | Does it look right? | render to PNG and look. Structural checks are supporting evidence; the plot is the check |
 
-## What is not solved here
+## What is produced, and what is not
 
-- **Schematics (SCD) and general arrangements (GAD).** The register lists 35 SCD and 23 GAD sheets.
-  A termination diagram is a table; a schematic is a placed-and-routed diagram, and it needs the
-  symbol library and a layout engine rather than a row loop. The reproducer path proves cadcraft can
-  draw them; the producer path does not yet.
-- **Pinout verification.** The S7-1200 G2 and S7-1500 manuals are not on the machine. The channel
-  counts are right (they come from the order schedule); the terminal-to-pin assignment is
-  provisional and says so on the sheet.
-- **The the S7-300 to S7-1500 adapter pin map.** the manufacturer publishes which adapter suits which module and no pin map.
-  For GEN (a retrofit into existing racks) this is the one thing that genuinely needs the manufacturer or the
-  physical adapter before the sheets can be issued.
-- **the I/O list rows with no tag.** 262 of 2,829 rows carry an address and no tag. They are drawn
-  untagged and counted in a note. The FDS cross-reference tables and the Citect data tables are the
-  next source and are not yet in hand.
+Three producer disciplines now exist: **termination diagrams** (`gen-tmd-data.ps1`, a table from the I/O
+list), **general arrangements** (`gen-gad-data.ps1`, a placement diagram from the order schedule), and
+**power-distribution schematics** (`gen-scd-power.ps1`, a radial AC/DC tree from the order schedule's
+power devices). On the current job that is 262 + 23 + 20 = 305 of the register's 367 sheets.
+
+What is not:
+
+- **The I/O signal schematic (15 sheets).** A power-distribution schematic is a radial tree, which is
+  regular enough to produce. A signal schematic is a per-card wiring diagram: every channel wired to its
+  field device through the terminals, with the house symbols and routed wires. That needs a symbol library
+  and a layout/routing engine, not a row loop. The reproducer path proves cadcraft can draw them; the
+  producer path does not yet.
+- **The AC final circuits on the power schematic.** The breakers and what each feeds are electrical-
+  distribution data, not in the automation order schedule (which lists modules, PSUs and switches). The
+  power schematic draws the AC bus and states that the branch count and ratings come from the electrical
+  BOM, rather than inventing them.
+- **Pinout verification.** The S7-1200 G2 and S7-1500 manuals are not on the machine. The channel counts
+  are right (they come from the order schedule); the terminal-to-pin assignment is provisional and says
+  so on the sheet.
+- **The S7-300-to-S7-1500 adapter pin map.** The manufacturer publishes which adapter suits which module
+  and no pin map. For the retrofit-into-existing-racks panel this is the one thing that genuinely needs
+  the vendor or the physical adapter before the sheets can be issued.
+- **I/O rows with no tag.** Some rows carry an address and no tag. They are drawn untagged and counted in
+  a note. The FDS cross-reference tables and the SCADA data tables are the next source and are not yet in
+  hand.
+- **Non-CAD disciplines.** The register also lists reports, manuals, procedures, lists and schedules.
+  Those are documents, not drawings; the list-type ones are already produced as CSV by the extract step
+  and would render through the branding skills, not the CAD producers.
+
