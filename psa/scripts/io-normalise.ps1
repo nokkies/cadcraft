@@ -279,12 +279,50 @@ foreach ($tf in $tabFiles) {
     })
 }
 
+# --- drop duplicate addresses -------------------------------------------------------
+# A field audit sometimes records the same channel twice (one station's list repeats I0.0, I2.7 and
+# every I3.x). Two rows for one address is not two channels, and downstream it is worse than noise:
+# the termination generator groups a panel's rows into cards by walking contiguous channel numbers,
+# so a repeated channel reads as a gap and one card shatters into a dozen one-row cards.
+#
+# The row kept is the one with more filled fields, so the richer record survives. The loser is
+# counted and reported, never silently discarded.
+function FieldScore($o) {
+    $n = 0
+    foreach ($prop in $o.PSObject.Properties) { if ([string]$prop.Value) { $n++ } }
+    return $n
+}
+$deduped = New-Object System.Collections.Generic.List[object]
+$seenKeys = @{}
+$dupDropped = 0
+$dupList = New-Object System.Collections.Generic.List[string]
+foreach ($r in ($records | Sort-Object Station, { [int]$_.Byte }, { [int]$_.Bit }, SourceRow)) {
+    $key = [string]$r.Station + '|' + [string]$r.Address
+    if (-not $seenKeys.ContainsKey($key)) {
+        $seenKeys[$key] = $r
+        $deduped.Add($r)
+        continue
+    }
+    $keep = $seenKeys[$key]
+    if ((FieldScore $r) -gt (FieldScore $keep)) {
+        $deduped.Remove($keep) | Out-Null
+        $seenKeys[$key] = $r
+        $deduped.Add($r)
+    }
+    $dupDropped++
+    if ($dupList.Count -lt 20) { $dupList.Add($key) }
+}
+$records = $deduped
+
 $outDir = Split-Path -Parent $OutFile
 if ($outDir -and -not (Test-Path -LiteralPath $outDir)) { New-Item -ItemType Directory -Force -Path $outDir | Out-Null }
 $records | Export-Csv -LiteralPath $OutFile -NoTypeInformation -Encoding UTF8
 
 # Per-station summary: counts by direction, plus how many rows carry a tag / a wire / a cable.
-Write-Host ("signals={0}  stations={1}" -f $records.Count, ($records.Station | Sort-Object -Unique).Count)
+Write-Host ("signals={0}  stations={1}  duplicate address rows dropped={2}" -f $records.Count, ($records.Station | Sort-Object -Unique).Count, $dupDropped)
+if ($dupDropped -gt 0) {
+    Write-Host ("  repeated addresses (first 20): " + ($dupList -join ', '))
+}
 foreach ($g in ($records | Group-Object Station | Sort-Object Name)) {
     $d = $g.Group | Group-Object Dir | ForEach-Object { "$($_.Name)=$($_.Count)" }
     $tagged = @($g.Group | Where-Object { $_.Tag }).Count

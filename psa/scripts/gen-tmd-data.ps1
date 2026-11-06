@@ -260,24 +260,32 @@ if ($sheetKind -eq 'card') {
     if ($dirWanted -eq 'I') { $pool = @($sig | Where-Object { $_.Dir -eq 'I' }) }
     elseif ($dirWanted -eq 'Q') { $pool = @($sig | Where-Object { $_.Dir -eq 'Q' }) }
     elseif ($dirWanted -eq 'IQ') { $pool = @($sig | Where-Object { $_.Dir -eq 'I' -or $_.Dir -eq 'Q' }) }
-    $pool = @($pool | Sort-Object { [int]$_.Byte }, { [int]$_.Bit })
+    # Sort by direction first, then address. A combined DI/DQ card numbers its inputs and outputs
+    # independently (both start at channel 1), so sorting on the channel alone interleaves the two
+    # and the run-splitter below shatters the pool into one-row runs: a 24-row CPU sheet came out
+    # with 1 row. Direction first keeps each block contiguous.
+    $pool = @($pool | Sort-Object { [string]$_.Dir }, { [int]$_.Byte }, { [int]$_.Bit })
 
     $inst = 1
     [void][int]::TryParse([string]$row.Instance, [ref]$inst)
     if ($inst -lt 1) { $inst = 1 }
 
-    # Contiguous runs of channel numbers, as parallel index arrays.
+    # Contiguous runs, as parallel index arrays. A run breaks on a channel gap OR on a direction
+    # change, because a direction change is a different block of the card, not a continuation.
     #
     # A [pscustomobject]@{Items = (List...)} reads more nicely, but @($r.Items) on it throws
     # "Argument types do not match" on this PowerShell version, and this runs on every card sheet.
     # Two index lists walked together have no such problem.
     $runStarts = New-Object System.Collections.Generic.List[int]
     $prevCh = -2
+    $prevDir = ''
     for ($k = 0; $k -lt $pool.Count; $k++) {
         $ch = 0
         [void][int]::TryParse([string]$pool[$k].Channel, [ref]$ch)
-        if ($k -eq 0 -or $ch -ne ($prevCh + 1)) { $runStarts.Add($k) }
+        $d = [string]$pool[$k].Dir
+        if ($k -eq 0 -or $d -ne $prevDir -or $ch -ne ($prevCh + 1)) { $runStarts.Add($k) }
         $prevCh = $ch
+        $prevDir = $d
     }
     $runEnds = New-Object System.Collections.Generic.List[int]
     for ($j = 0; $j -lt $runStarts.Count; $j++) {
@@ -298,8 +306,29 @@ if ($sheetKind -eq 'card') {
         }
     }
 
+    $sheetOverflow = 0
+    $droppedRows = 0
+    $ofClaimed = 0
     if ($inst -le $chunkStarts.Count) {
-        $cardSignals = @($pool[$chunkStarts[$inst - 1]..$chunkEnds[$inst - 1]])
+        $cs = $chunkStarts[$inst - 1]
+        $ce = $chunkEnds[$inst - 1]
+        $cardSignals = @($pool[$cs..$ce])
+    }
+
+    # The register says how many sheets this card kind gets ("SM1221 DI16 (2 OF 2)"). If the panel's
+    # addressing needs more card-sized blocks than the register has sheets for, rows fall off the end
+    # and nothing on the sheet says so. That is a real discrepancy between the register and the I/O
+    # list -- usually a retrofit rack whose addressing has gaps, or an existing I/O count the design
+    # does not cover -- and it is the engineer's to resolve, not the generator's to paper over.
+    # State it on the sheet.
+    [void][int]::TryParse([string]$row.Of, [ref]$ofClaimed)
+    if ($ofClaimed -gt 0 -and $chunkStarts.Count -gt $ofClaimed) {
+        $sheetOverflow = $chunkStarts.Count - $ofClaimed
+        $placedCount = 0
+        for ($q = 0; $q -lt [math]::Min($ofClaimed, $chunkStarts.Count); $q++) {
+            $placedCount += $chunkEnds[$q] - $chunkStarts[$q] + 1
+        }
+        $droppedRows = $pool.Count - $placedCount
     }
 }
 
@@ -369,7 +398,11 @@ foreach ($c in $cols) { $c.x = $x; $x += [double]$c.w }
 $availableH = 430.0
 $isAnalogue = $false
 if ($null -ne $mod -and $mod.PSObject.Properties.Name -contains 'analogue') { $isAnalogue = [bool]$mod.analogue }
-$minPitch = if ($isAnalogue) { 18.0 } else { 14.0 }
+# The floor has to admit a 32-point card, because that is the most common module on an S7-1500 job:
+# 430/32 = 13.4, so a floor of 14 made every DI32 sheet claim it did not fit. 12.5 fits 32 rows with
+# a 3.5-high label clearing its row rules; the fit was checked by rendering a 32-row sheet and
+# reading it.
+$minPitch = if ($isAnalogue) { 18.0 } else { 12.5 }
 $maxPitch = if ($isAnalogue) { 40.0 } else { 26.0 }
 if ($drawnRows -gt 0) {
     $fit = [math]::Floor(($availableH / $drawnRows) * 10.0) / 10.0
@@ -676,6 +709,11 @@ if ($sheetKind -eq 'card' -and $drawnRows -lt $rowsToDraw) {
 # A card whose channels will not fit at the minimum legible pitch: say so on the sheet.
 if ($sheetKind -eq 'card' -and $rowsToDraw -gt $fitsAtMin -and $fitsAtMin -gt 0) {
     Emit-Text $originX ($noteY - 2.0) ("$rowsToDraw CHANNELS EXCEED WHAT FITS ON ONE A1 SHEET AT MINIMUM PITCH ($fitsAtMin) - CHECK SHEET SPLIT") $hLabel '5T' $styleName 'L'
+    $noteY -= 8.0
+}
+# The register's sheet count for this card kind does not cover the panel's addressing.
+if ($sheetKind -eq 'card' -and $sheetOverflow -gt 0) {
+    Emit-Text $originX ($noteY - 2.0) ("$($chunkStarts.Count) CARD BLOCKS IN THE I/O ADDRESSING, REGISTER PROVIDES $ofClaimed SHEETS - $droppedRows ROWS NOT DRAWN, CHECK REGISTER AGAINST I/O LIST") $hLabel '5T' $styleName 'L'
     $noteY -= 8.0
 }
 $untagged = @($cardSignals | Where-Object { -not $_.Tag }).Count

@@ -80,6 +80,16 @@ $manifest = @(Import-Csv -LiteralPath $ManifestCsv)
 $plan = @(Import-Csv -LiteralPath $PlanCsv)
 $sig = @(Import-Csv -LiteralPath $SignalsCsv)
 
+# Norm-Station: reduce a panel name to one key so the register's spelling and the I/O list's tab
+# name compare equal. Kept identical to the generator's function of the same name: if the two drift,
+# the checker silently disagrees with the generator about which panel a sheet belongs to.
+function Norm-Station([string]$s) {
+    if ($null -eq $s) { return '' }
+    $t = ($s.ToUpperInvariant() -replace '[^A-Z0-9]', '')
+    $t = $t -replace 'REMOTEIO$', ''
+    return $t
+}
+
 # PropStr: a property as a string, or '' when the object does not carry it. StrictMode makes a bare
 # $obj.missing throw, and both the rules file and the hardware library are heterogeneous.
 function PropStr($obj, [string]$name) {
@@ -250,11 +260,17 @@ foreach ($m in $manifest) {
     else { Add-Result $num 'P9' 'FAIL' 'no NOT FOR CONSTRUCTION stamp in paper space' }
 
     # P5 bookkeeping: record every address this sheet placed.
+    #
+    # The key is the NORMALISED station, because the register and the I/O list spell the same panel
+    # differently (the register's "X REMOTE I/O" and "Y BUS 1" against the I/O tab's "X" and
+    # "Y_BUS_1"). Keying on the literal string makes the checker compare a sheet's addresses against
+    # a different station's rows, so it reports both duplicates and missing rows that are not there.
     if (([string]$m.Verified) -ne '' -or $order) {
+        $skey = Norm-Station $station
         foreach ($t in $modelTexts) {
             $txt = [string]$t.text
             if ($txt -match '^[IQ][A-Z]?\d{1,3}\.\d$') {
-                $key = "$station|$txt"
+                $key = "$skey|$txt"
                 if ($placed.ContainsKey($key)) { $duplicate.Add("$key on $num and $($placed[$key])") }
                 else { $placed[$key] = $num }
             }
@@ -265,10 +281,11 @@ foreach ($m in $manifest) {
 # P5: every station's signals should be placed exactly once across its sheets.
 $planStations = @($manifest | ForEach-Object { [string]$_.Station } | Where-Object { $_ } | Sort-Object -Unique)
 foreach ($st in $planStations) {
-    $want = @($sig | Where-Object { $_.Station -eq $st })
+    $skey = Norm-Station $st
+    $want = @($sig | Where-Object { (Norm-Station ([string]$_.Station)) -eq $skey })
     $missingAddrs = @()
     foreach ($s in $want) {
-        $key = "$st|$($s.Address)"
+        $key = "$skey|$($s.Address)"
         if (-not $placed.ContainsKey($key)) { $missingAddrs += [string]$s.Address }
     }
     if ($missingAddrs.Count -eq 0) {
