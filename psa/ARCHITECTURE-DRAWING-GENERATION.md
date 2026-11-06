@@ -36,8 +36,12 @@ agreeing.
       gen-gad-data.ps1             general arrangement  (placement, from the order schedule)
       gen-scd-power.ps1            power schematic      (radial tree, from the order schedule)
       gen-scd-earth.ps1            earthing schematic   (earth bar + ways, from the order schedule)
+      gen-cbd-comms.ps1            comms block diagram  (network topology, from the order schedule)
+      gen-lst-data.ps1             one list sheet       (a CSV as a ruled A1 table)
+      cable-schedule.ps1           the cable schedule CSV derived from the signal table
+      gen-lst-pack.ps1             paginate a list across as many A1 sheets as it needs
       |
-  gen-pack.ps1                     the loop: pick generator by discipline (SCD by title), manifest, logs
+  gen-pack.ps1                     the loop: pick generator by discipline (SCD/CBD by title), manifest
       |
   check-pack.ps1                   P1..P10 over the whole pack (discipline-aware)
       v
@@ -143,36 +147,42 @@ unknown instead of guessing whether the row is missing or empty. Nothing is inve
 
 ## What is produced, and what is not
 
-Four producer disciplines now exist: **termination diagrams** (`gen-tmd-data.ps1`, a table from the I/O
-list), **general arrangements** (`gen-gad-data.ps1`, a placement diagram from the order schedule),
-**power-distribution schematics** (`gen-scd-power.ps1`, a radial AC/DC tree from the order schedule's
-power devices), and **panel earthing schematics** (`gen-scd-earth.ps1`, an earth bar with a way per
-earthed item). On the current job that is 262 + 23 + 35 = 320 of the register's 367 sheets, and every
-CAD discipline the register lists is produced.
+Six producer kinds now exist, across the register's CAD and tabular disciplines:
 
-What is not:
+- **termination diagrams** (`gen-tmd-data.ps1`) -- a table from the I/O list
+- **general arrangements** (`gen-gad-data.ps1`) -- a placement diagram from the order schedule
+- **power-distribution schematics** (`gen-scd-power.ps1`) -- a radial AC/DC tree from the order schedule
+- **panel earthing schematics** (`gen-scd-earth.ps1`) -- an earth bar with a way per earthed item
+- **communications block diagram** (`gen-cbd-comms.ps1`) -- a network topology from the comms devices
+- **list / schedule sheets** (`gen-lst-data.ps1` + `gen-lst-pack.ps1`, with `cable-schedule.ps1`) -- a
+  CSV laid out as a ruled, paginated A1 table
+
+On the current job that is 262 TMD + 23 GAD + 35 SCD + 1 CBD + 45 LST = **366 sheets**, covering every
+CAD discipline and the producible list disciplines.
+
+What is not, and why:
 
 - **The AC final circuits on the power schematic.** The breakers and what each feeds are electrical-
   distribution data, not in the automation order schedule (which lists modules, PSUs and switches). The
   power schematic draws the AC bus and states that the branch count and ratings come from the electrical
   BOM, rather than inventing them.
+- **As-built markups.** The register's "updated to as constructed" / "where changed by the works" rows
+  (network architecture CBD-001, fibre reticulation LAY, single-line SLD, logic LGD) are markups of
+  *existing* drawings that need field/as-built data. They are skipped with a reason, not faked.
+- **Records of work not yet done.** The reports (HAZOP, FAT, SAT, PAT), manuals, procedures, training and
+  software-backup rows are produced by *holding* those meetings and tests, or are the engineering
+  deliverable itself (the TIA / SCADA projects). No drawing generator makes them.
 - **Pinout verification.** The S7-1200 G2 and S7-1500 manuals are not on the machine. The channel counts
   are right (they come from the order schedule); the terminal-to-pin assignment is provisional and says
   so on the sheet.
 - **The S7-300-to-S7-1500 adapter pin map.** The manufacturer publishes which adapter suits which module
-  and no pin map. For the retrofit-into-existing-racks panel this is the one thing that genuinely needs
-  the vendor or the physical adapter before the sheets can be issued.
+  and no pin map. For the retrofit-into-existing-racks panel this genuinely needs the vendor or the
+  physical adapter before the sheets can be issued.
 - **I/O rows with no tag.** Some rows carry an address and no tag. They are drawn untagged and counted in
-  a note. The FDS cross-reference tables and the SCADA data tables are the next source and are not yet in
-  hand.
-- **Non-CAD disciplines.** The register also lists reports, manuals, procedures, lists and schedules
-  (REP, MAN, PRO, LST, and a few one-off types). Those are documents, not drawings; the list-type ones
-  are already produced as CSV by the extract step and would render through the branding skills, not the
-  CAD producers.
+  a note.
 
-A note on a wrong assumption corrected: the 15 sheets first labelled "I/O signal schematic, needs a
-routing engine" were not that. The register's "PANEL SCHEMATIC DIAGRAM" rows are earthing schematics, a
-regular bar-and-ways structure that produces cleanly. The lesson is recorded in the skill: check what the
-reference sheet actually contains before declaring a discipline unproducible.
+Two wrong assumptions were corrected by opening the reference sheet before giving up on a discipline: the
+"PANEL SCHEMATIC DIAGRAM" rows were earthing schematics (producible), and the LST rows were A1 tables
+(producible). The lesson is in the skill: the register's name is not the drawing -- look at the reference.
 
 

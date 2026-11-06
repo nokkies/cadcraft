@@ -9,7 +9,7 @@
 #
 # Topology read from the order schedule:
 #   - the core/distribution switch is the managed layer-2 switch bought once at project level
-#     (a SCALANCE XR-class part);
+#     (identified by its role words, not a part name);
 #   - every panel that buys an industrial switch, a bus adapter or a comms module is a network node;
 #   - each node is drawn as a box with its panel name and its switch type, and a link drops to the
 #     core switch. Link type (managed IE switch / remote I/O / serial) is taken from the device words.
@@ -137,12 +137,21 @@ foreach ($ln in $osRows) {
     $panel = [string]$ln.PSObject.Properties['Panel'].Value
     $desc = [string]$ln.PSObject.Properties['Description'].Value
     $d = $desc.ToUpperInvariant()
-    if ($d -match 'XR326|XR-326') { if (-not $coreDesc) { $coreDesc = 'CORE SWITCH - SCALANCE XR326-8 MANAGED L2' }; continue }
+    # The core is the managed layer-2 backbone switch bought once at project level. It is identified by
+    # role words (a managed switch that is NOT a panel's access switch), and its label is taken from the
+    # schedule's own description -- the generator carries no vendor part names of its own.
+    if ($d -match 'MANAGED LAYER 2|MANAGED L2' -and $d -match 'SWITCH|IE SW|IE SW\b|\bSW\b' -and (Norm-Station $panel) -eq 'PROJECT') {
+        if (-not $coreDesc) {
+            $coreDesc = 'CORE SWITCH - ' + ($desc.ToUpperInvariant() -replace '\s+',' ').Trim()
+            if ($coreDesc.Length -gt 60) { $coreDesc = $coreDesc.Substring(0,60) }
+        }
+        continue
+    }
     $cls = ''
-    if ($d -match 'XC206|XB208|XF204|SCALANCE X') { $cls = 'INDUSTRIAL ETHERNET SWITCH' }
-    elseif ($d -match 'CSM 1277') { $cls = 'SWITCH MODULE' }
-    elseif ($d -match 'BUSADAPTOR|BA 2XRJ45|BA 2X|REMOTE I/O|ET200|ET 200') { $cls = 'REMOTE I/O' }
-    elseif ($d -match 'CP 1243|CM 1241|SERIAL|4G MOBILE') { $cls = 'COMMS MODULE' }
+    if ($d -match 'MANAGED|IE SW|INDUSTRIAL ETHERNET|ETHERNET SWITCH') { $cls = 'INDUSTRIAL ETHERNET SWITCH' }
+    elseif ($d -match 'SWITCH MODULE|CSM ') { $cls = 'SWITCH MODULE' }
+    elseif ($d -match 'BUSADAPTOR|BUS ADAPTER|BA 2X|REMOTE I/O|ET200|ET 200') { $cls = 'REMOTE I/O' }
+    elseif ($d -match 'CP 1|CM 1|COMMUNICATION PROCESSOR|SERIAL|MOBILE RADIO|4G') { $cls = 'COMMS MODULE' }
     if (-not $cls) { continue }
     $pk = Norm-Station $panel
     if (-not $byPanel.ContainsKey($pk)) {

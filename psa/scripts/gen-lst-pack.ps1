@@ -5,12 +5,12 @@
 # This driver loops the pages, calls the generator once per page with the right -RowOffset, and writes
 # a manifest. It is the list counterpart of gen-pack.ps1.
 #
-# Sheet numbering: the register gives the list one number (e.g. 2934-IC-LST-001). Each page is that
+# Sheet numbering: the register gives the list one number (e.g. NNNN-IC-LST-001). Each page is that
 # number with a page suffix, so the set is traceable back to the register row.
 #
 # Usage:
 #   pwsh -File psa/scripts/gen-lst-pack.ps1 -Template <t.dwg> -SourceCsv <data.csv> -OutDir <dir> `
-#        -Kind io -Title "I/O LIST - ALL STATIONS" -Number 2934-IC-LST-001 [-ProjectNumber NNNN]
+#        -Kind io -Title "I/O LIST - ALL STATIONS" -Number NNNN-IC-LST-001 [-ProjectNumber NNNN]
 
 [CmdletBinding()]
 param(
