@@ -208,10 +208,10 @@ if ($sheetKind -ne 'card') {
 }
 
 # --- signals for this station ------------------------------------------------------
-# The register and the I/O list name the same panel differently: the register says "CEP REMOTE I/O"
-# and "BUS 1", the I/O workbook's tab (and so the normalised table) says "CEP" and
-# "SSHHC_BUS_1". Matching on the literal string finds no rows and produces an empty sheet without
-# complaining, so both spellings are reduced to the same key before comparison.
+# The register and the I/O list name the same panel differently: the register says "X REMOTE I/O"
+# and "Y BUS 1", the I/O workbook's tab (and so the normalised table) says "X" and "Y_BUS_1".
+# Matching on the literal string finds no rows and produces an empty sheet without complaining, so
+# both spellings are reduced to the same key before comparison.
 function Norm-Station([string]$s) {
     if ($null -eq $s) { return '' }
     $t = ($s.ToUpperInvariant() -replace '[^A-Z0-9]', '')
