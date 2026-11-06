@@ -7,7 +7,7 @@
 #
 # This script rewrites the known project-specific tokens in the listed files to the placeholders the
 # plan already uses (NNNN = project, RRRR = reference project, P01 = a panel, <order number> = a
-# Siemens MLFB). Run it after editing a pipeline file, before committing.
+# manufacturer part code). Run it after editing a pipeline file, before committing.
 #
 # Usage: pwsh -File psa/scripts/scrub-project-facts.ps1 [-Check]
 #   -Check: report what still looks project-specific and change nothing.

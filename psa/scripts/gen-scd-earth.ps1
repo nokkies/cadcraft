@@ -154,7 +154,7 @@ foreach ($ln in $panelLines) {
     $desc = ([string]$ln.PSObject.Properties['Description'].Value).ToUpperInvariant()
     if ($desc -match 'SURGE|SPD') { $hasSPD = $true }
     if ($desc -match 'SITOP|PSU|POWER SUPPLY|PM1507') { $hasPSU = $true }
-    if ($desc -match 'SWITCH|XF204|XC206|XB208|SCALANCE') { $hasSwitch = $true }
+    if ($desc -match 'SWITCH|IE SW|MANAGED|INDUSTRIAL ETHERNET|ETHERNET SWITCH') { $hasSwitch = $true }
 }
 if ($hasSPD) { $items.Add([pscustomobject]@{ Label = 'SPD PE'; Kind = 'E'; Size = '6mm2'; Wire = '' }) }
 $items.Add([pscustomobject]@{ Label = 'SERVICE SOCKET E'; Kind = 'E'; Size = '2.5mm2'; Wire = '' })
