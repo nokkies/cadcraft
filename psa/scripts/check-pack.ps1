@@ -121,6 +121,11 @@ if ($Rules -and (Test-Path -LiteralPath $Rules)) {
 $sheetMinX = -20.0; $sheetMaxX = 880.0
 $sheetMinY = -20.0; $sheetMaxY = 620.0
 
+# The generator lays the table out from a fixed origin with fixed column widths, so the centre of
+# the ADDR column is the same number on every card sheet. P5 uses it to read the address out of the
+# address column rather than out of every address-shaped text on the sheet.
+$addrColumnCentre = 227.0
+
 $results = New-Object System.Collections.Generic.List[object]
 function Add-Result([string]$num, [string]$id, [string]$status, [string]$detail) {
     $script:results.Add([pscustomobject]@{ Number = $num; Check = $id; Status = $status; Detail = $detail })
@@ -265,15 +270,25 @@ foreach ($m in $manifest) {
     # differently (the register's "X REMOTE I/O" and "Y BUS 1" against the I/O tab's "X" and
     # "Y_BUS_1"). Keying on the literal string makes the checker compare a sheet's addresses against
     # a different station's rows, so it reports both duplicates and missing rows that are not there.
+    #
+    # The address is read from the ADDR COLUMN ONLY, identified by its x position, not by matching
+    # every address-shaped text on the sheet. A field audit commonly records the wire number as the
+    # channel address (Wire No. = "I0.0" for I0.0), so a text scan counted one channel as two and
+    # reported over a thousand phantom duplicates.
     if (([string]$m.Verified) -ne '' -or $order) {
         $skey = Norm-Station $station
         foreach ($t in $modelTexts) {
             $txt = [string]$t.text
-            if ($txt -match '^[IQ][A-Z]?\d{1,3}\.\d$') {
-                $key = "$skey|$txt"
-                if ($placed.ContainsKey($key)) { $duplicate.Add("$key on $num and $($placed[$key])") }
-                else { $placed[$key] = $num }
-            }
+            if ($txt -notmatch '^[IQ][A-Z]?\d{1,3}\.\d$') { continue }
+            $pos = @($t.at)
+            if ($pos.Count -lt 2) { continue }
+            $tx = 0.0
+            if (-not [double]::TryParse([string]$pos[0], [ref]$tx)) { continue }
+            # The ADDR column is centred; a text placed there sits within a few units of it.
+            if ([math]::Abs($tx - $addrColumnCentre) -gt 6.0) { continue }
+            $key = "$skey|$txt"
+            if ($placed.ContainsKey($key)) { $duplicate.Add("$key on $num and $($placed[$key])") }
+            else { $placed[$key] = $num }
         }
     }
 }

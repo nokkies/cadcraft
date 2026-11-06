@@ -248,6 +248,13 @@ if ($sig.Count -eq 0) { Write-Warning "no I/O rows for station '$station' (key '
 # new run), then cut each run into card-sized chunks. Numbering the chunks in order gives the
 # register's card sequence, and instance n picks chunk n. Every row lands on exactly one sheet, and
 # a gap in the addressing becomes a card boundary rather than a shift.
+#
+# The second rule, learned from a station where the CPU's own inputs appeared again on the first
+# expansion-card sheet: a card takes its channels from the pool that is LEFT when the card kinds
+# registered BEFORE it have taken theirs. Every card kind sliced from the whole station pool, so a
+# CPU 1214C ONBOARD I/O (dir IQ) and the SM1221 DI16 (dir I) both started at channel 1 and drew the
+# same rows. Cards are consumed in register order - by the number the register gives the sheet, which
+# is the order the designer drew them in.
 $chanPerCard = 0
 if ($null -ne $mod) { $chanPerCard = [int]$mod.channels }
 if ($chanPerCard -le 0) { $chanPerCard = 32 }
@@ -255,80 +262,152 @@ if ($chanPerCard -le 0) { $chanPerCard = 32 }
 $dirWanted = ''
 if ($null -ne $mod) { $dirWanted = [string]$mod.dir }
 $cardSignals = @()
+$sheetOverflow = 0
+$droppedRows = 0
 if ($sheetKind -eq 'card') {
-    $pool = @($sig)
-    if ($dirWanted -eq 'I') { $pool = @($sig | Where-Object { $_.Dir -eq 'I' }) }
-    elseif ($dirWanted -eq 'Q') { $pool = @($sig | Where-Object { $_.Dir -eq 'Q' }) }
-    elseif ($dirWanted -eq 'IQ') { $pool = @($sig | Where-Object { $_.Dir -eq 'I' -or $_.Dir -eq 'Q' }) }
-    # Sort by direction first, then address. A combined DI/DQ card numbers its inputs and outputs
-    # independently (both start at channel 1), so sorting on the channel alone interleaves the two
-    # and the run-splitter below shatters the pool into one-row runs: a 24-row CPU sheet came out
-    # with 1 row. Direction first keeps each block contiguous.
-    $pool = @($pool | Sort-Object { [string]$_.Dir }, { [int]$_.Byte }, { [int]$_.Bit })
-
     $inst = 1
     [void][int]::TryParse([string]$row.Instance, [ref]$inst)
     if ($inst -lt 1) { $inst = 1 }
 
-    # Contiguous runs, as parallel index arrays. A run breaks on a channel gap OR on a direction
-    # change, because a direction change is a different block of the card, not a continuation.
+    # Every card sheet for this station, in the order the register numbers them. That order is the
+    # order the designer drew the cards in, and it is the only thing that says which card owns which
+    # channels when a CPU's own I/O and an expansion card both start at channel 1.
+    $myNumber = [string]$row.Number
+    $mySeq = 0
+    [void][int]::TryParse(($myNumber -replace '^.*?(\d+)$', '$1'), [ref]$mySeq)
+    $cardSheets = New-Object System.Collections.Generic.List[object]
+    foreach ($pr in $plan) {
+        $prNum = [string]$pr.Number
+        if (([string]$pr.Discipline) -ne 'TMD') { continue }
+        if ((Norm-Station ([string]$pr.Station)) -ne (Norm-Station $station)) { continue }
+        if (([string]$pr.Card) -match 'COMMUNICATION|POWER SUPPLY') { continue }
+        $prOrder = ''
+        $prCardTitle = [string]$pr.Card
+        foreach ($k in $keys) {
+            if ($prCardTitle.ToUpperInvariant().Contains($k.ToUpperInvariant())) { $prOrder = [string]$aliasMap.$k; break }
+        }
+        if (-not $prOrder -or -not ($hw.modules.PSObject.Properties.Name -contains $prOrder)) { continue }
+        $prSeq = 0
+        if (-not [int]::TryParse(($prNum -replace '^.*?(\d+)$', '$1'), [ref]$prSeq)) { continue }
+        $prMod = $hw.modules.$prOrder
+        $prInst = 1
+        [void][int]::TryParse([string]$pr.Instance, [ref]$prInst)
+        $cardSheets.Add([pscustomobject]@{
+            Number = $prNum; Seq = $prSeq; Order = $prOrder
+            Dir = [string]$prMod.dir; Chan = [int]$prMod.channels; Inst = $prInst
+        })
+    }
+
+    # Split each direction's rows into card-sized blocks ONCE, over the whole station, so the block
+    # numbering is the same for every sheet. Splitting per sheet and then dropping rows renumbers the
+    # blocks and hands a sheet an index past the end -- which is how five sheets ended up drawing
+    # nothing at all.
     #
-    # A [pscustomobject]@{Items = (List...)} reads more nicely, but @($r.Items) on it throws
-    # "Argument types do not match" on this PowerShell version, and this runs on every card sheet.
-    # Two index lists walked together have no such problem.
-    $runStarts = New-Object System.Collections.Generic.List[int]
-    $prevCh = -2
-    $prevDir = ''
-    for ($k = 0; $k -lt $pool.Count; $k++) {
-        $ch = 0
-        [void][int]::TryParse([string]$pool[$k].Channel, [ref]$ch)
-        $d = [string]$pool[$k].Dir
-        if ($k -eq 0 -or $d -ne $prevDir -or $ch -ne ($prevCh + 1)) { $runStarts.Add($k) }
-        $prevCh = $ch
-        $prevDir = $d
-    }
-    $runEnds = New-Object System.Collections.Generic.List[int]
-    for ($j = 0; $j -lt $runStarts.Count; $j++) {
-        $runEnds.Add($(if ($j + 1 -lt $runStarts.Count) { $runStarts[$j + 1] - 1 } else { $pool.Count - 1 }))
-    }
-
-    # Each run cut into card-sized chunks; the chunks in order are the cards.
-    $chunkStarts = New-Object System.Collections.Generic.List[int]
-    $chunkEnds = New-Object System.Collections.Generic.List[int]
-    for ($j = 0; $j -lt $runStarts.Count; $j++) {
-        $pos = $runStarts[$j]
-        $stop = $runEnds[$j]
-        while ($pos -le $stop) {
-            $end = [math]::Min($pos + $chanPerCard - 1, $stop)
-            $chunkStarts.Add($pos)
-            $chunkEnds.Add($end)
-            $pos = $end + 1
+    # A block is the size of the card that OWNS it, taken in the register's own sheet order. Two other
+    # ways of cutting it were tried and both are wrong: sizing every block at the card being drawn
+    # leaves a CPU 1214C (14 inputs) followed by an SM1221 (16) with a 16-row remainder the 16-row
+    # sheet cannot show, so the sheet comes out empty; and taking the biggest card that fits first
+    # hands the CPU's 14 channels to a 16-wide block and starves the CPU sheet to 2 rows. Walking the
+    # register's cards in order, each taking its own channel count off the front of the remaining
+    # addressing, is the only rule that matches what the designer drew.
+    $dirKeys = @('I', 'Q')
+    $blocksByDir = @{}
+    foreach ($dk in $dirKeys) {
+        $rowsD = @($sig | Where-Object { $_.Dir -eq $dk } | Sort-Object { [int]$_.Byte }, { [int]$_.Bit })
+        $starts = New-Object System.Collections.Generic.List[int]
+        $ends = New-Object System.Collections.Generic.List[int]
+        $ownerOf = New-Object System.Collections.Generic.List[string]
+        $p = 0
+        foreach ($cs in ($cardSheets | Sort-Object Seq)) {
+            if ($cs.Dir -ne $dk -and $cs.Dir -ne 'IQ') { continue }
+            if ($p -ge $rowsD.Count) { break }
+            $want = [int]$cs.Chan
+            if ($want -le 0) { $want = 32 }
+            # A combined DI/DQ card (an onboard CPU) sizes its two directions separately: a CPU 1214C
+            # is 14 inputs and 10 outputs, not 24 of each. Taking channels=24 for both directions gave
+            # the CPU sheet 48 rows and pushed the table off the bottom of the sheet.
+            if ($cs.Dir -eq 'IQ') {
+                $ob = $null
+                $csMod = $hw.modules.$($cs.Order)
+                if ($null -ne $csMod -and $csMod.PSObject.Properties.Name -contains 'onboardIo') { $ob = $csMod.onboardIo }
+                if ($null -ne $ob) {
+                    if ($dk -eq 'I' -and $ob.PSObject.Properties.Name -contains 'di') { $want = [int]$ob.di }
+                    elseif ($dk -eq 'Q' -and $ob.PSObject.Properties.Name -contains 'dq') { $want = [int]$ob.dq }
+                }
+            }
+            # Take up to $want rows, stopping at a gap in the addressing: a gap is a card boundary.
+            # The guard is $e + 1 -lt Count, not $e -lt Count: the body reads $rowsD[$e + 1], and the
+            # looser guard let $e reach the last row and index one past the end.
+            $e = $p
+            $n = 0
+            while (($e + 1) -lt $rowsD.Count -and $n -lt ($want - 1)) {
+                $ca = 0; $cb = 0
+                [void][int]::TryParse([string]$rowsD[$e].Channel, [ref]$ca)
+                [void][int]::TryParse([string]$rowsD[$e + 1].Channel, [ref]$cb)
+                if ($cb -ne ($ca + 1)) { break }
+                $e++; $n++
+            }
+            $starts.Add($p); $ends.Add($e); $ownerOf.Add([string]$cs.Number)
+            $p = $e + 1
         }
+        # Rows the register's cards do not cover (more addressing than sheets): one block each, so
+        # they are counted in the shortfall note rather than vanishing.
+        while ($p -lt $rowsD.Count) {
+            $e = $p
+            while ($e + 1 -lt $rowsD.Count) {
+                $ca = 0; $cb = 0
+                [void][int]::TryParse([string]$rowsD[$e].Channel, [ref]$ca)
+                [void][int]::TryParse([string]$rowsD[$e + 1].Channel, [ref]$cb)
+                if ($cb -ne ($ca + 1)) { break }
+                $e++
+            }
+            $starts.Add($p); $ends.Add($e); $ownerOf.Add('')
+            $p = $e + 1
+        }
+        $blocksByDir[$dk] = @{ Rows = $rowsD; Starts = $starts; Ends = $ends; Owner = $ownerOf }
     }
 
-    $sheetOverflow = 0
-    $droppedRows = 0
+    # A block belongs to the sheet that owns it, recorded when the blocks were cut. Blocks are numbered
+    # per direction in the register's card order, so the sheet's own instance is its block index.
+    $sel = New-Object System.Collections.Generic.List[object]
+    $wantI = ($dirWanted -eq 'I' -or $dirWanted -eq 'IQ')
+    $wantQ = ($dirWanted -eq 'Q' -or $dirWanted -eq 'IQ')
+    foreach ($dk in $dirKeys) {
+        $bd = $blocksByDir[$dk]
+        if ($dk -eq 'I' -and -not $wantI) { continue }
+        if ($dk -eq 'Q' -and -not $wantQ) { continue }
+        # Which block of this direction is this sheet's: the blocks of this direction, in the register's
+        # order, numbered from 1 across the sheets that claim this direction.
+        $ordinal = 0
+        foreach ($cs in ($cardSheets | Sort-Object Seq)) {
+            if (-not ($cs.Dir -eq $dk -or $cs.Dir -eq 'IQ')) { continue }
+            $ordinal++
+            if ($cs.Number -eq $myNumber) { break }
+        }
+        # A combined card (dir IQ) spans both directions and its own instance does not index either
+        # direction's block list on its own; it takes the first block of each.
+        $bi = $ordinal - 1
+        if ($dirWanted -eq 'IQ') { $bi = [int]$row.Instance - 1 }
+        if ($bi -lt 0 -or $bi -ge $bd.Starts.Count) { continue }
+        for ($k = $bd.Starts[$bi]; $k -le $bd.Ends[$bi]; $k++) { $sel.Add($bd.Rows[$k]) }
+    }
+    $cardSignals = @($sel.ToArray())
+
+    # How many blocks the station's addressing needs, against how many sheets the register provides.
     $ofClaimed = 0
-    if ($inst -le $chunkStarts.Count) {
-        $cs = $chunkStarts[$inst - 1]
-        $ce = $chunkEnds[$inst - 1]
-        $cardSignals = @($pool[$cs..$ce])
-    }
-
-    # The register says how many sheets this card kind gets ("SM1221 DI16 (2 OF 2)"). If the panel's
-    # addressing needs more card-sized blocks than the register has sheets for, rows fall off the end
-    # and nothing on the sheet says so. That is a real discrepancy between the register and the I/O
-    # list -- usually a retrofit rack whose addressing has gaps, or an existing I/O count the design
-    # does not cover -- and it is the engineer's to resolve, not the generator's to paper over.
-    # State it on the sheet.
     [void][int]::TryParse([string]$row.Of, [ref]$ofClaimed)
-    if ($ofClaimed -gt 0 -and $chunkStarts.Count -gt $ofClaimed) {
-        $sheetOverflow = $chunkStarts.Count - $ofClaimed
-        $placedCount = 0
-        for ($q = 0; $q -lt [math]::Min($ofClaimed, $chunkStarts.Count); $q++) {
-            $placedCount += $chunkEnds[$q] - $chunkStarts[$q] + 1
-        }
-        $droppedRows = $pool.Count - $placedCount
+    $needBlocks = 0
+    if ($dirWanted -eq 'I') { $needBlocks = $blocksByDir['I'].Starts.Count }
+    elseif ($dirWanted -eq 'Q') { $needBlocks = $blocksByDir['Q'].Starts.Count }
+    else { $needBlocks = $blocksByDir['I'].Starts.Count + $blocksByDir['Q'].Starts.Count }
+    if ($ofClaimed -gt 0 -and $needBlocks -gt $ofClaimed) {
+        $sheetOverflow = $needBlocks - $ofClaimed
+        $poolN = 0
+        if ($dirWanted -eq 'I') { $poolN = $blocksByDir['I'].Rows.Count }
+        elseif ($dirWanted -eq 'Q') { $poolN = $blocksByDir['Q'].Rows.Count }
+        else { $poolN = $blocksByDir['I'].Rows.Count + $blocksByDir['Q'].Rows.Count }
+        $drawn = [math]::Min($poolN, $ofClaimed * $chanPerCard)
+        $droppedRows = $poolN - $drawn
     }
 }
 
@@ -711,9 +790,15 @@ if ($sheetKind -eq 'card' -and $rowsToDraw -gt $fitsAtMin -and $fitsAtMin -gt 0)
     Emit-Text $originX ($noteY - 2.0) ("$rowsToDraw CHANNELS EXCEED WHAT FITS ON ONE A1 SHEET AT MINIMUM PITCH ($fitsAtMin) - CHECK SHEET SPLIT") $hLabel '5T' $styleName 'L'
     $noteY -= 8.0
 }
+# The register says this card kind has more than one sheet, but the panel's addressing does not fill
+# this instance: a card the order schedule bought and the I/O list does not use. Draw the card with no
+# rows and say so, rather than leaving a titled blank that looks like a generator fault.
+if ($sheetKind -eq 'card' -and $rowsToDraw -eq 0) {
+    Emit-Text $originX ($hdrY - 14.0) 'NO I/O ROWS ASSIGNED TO THIS CARD - THE I/O LIST HAS NO CHANNELS FOR IT' $hLabel '5T' $styleName 'L'
+}
 # The register's sheet count for this card kind does not cover the panel's addressing.
 if ($sheetKind -eq 'card' -and $sheetOverflow -gt 0) {
-    Emit-Text $originX ($noteY - 2.0) ("$($chunkStarts.Count) CARD BLOCKS IN THE I/O ADDRESSING, REGISTER PROVIDES $ofClaimed SHEETS - $droppedRows ROWS NOT DRAWN, CHECK REGISTER AGAINST I/O LIST") $hLabel '5T' $styleName 'L'
+    Emit-Text $originX ($noteY - 2.0) ("$needBlocks CARD BLOCKS IN THE I/O ADDRESSING, REGISTER PROVIDES $ofClaimed SHEETS - $droppedRows ROWS NOT DRAWN, CHECK REGISTER AGAINST I/O LIST") $hLabel '5T' $styleName 'L'
     $noteY -= 8.0
 }
 $untagged = @($cardSignals | Where-Object { -not $_.Tag }).Count
