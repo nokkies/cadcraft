@@ -1,0 +1,234 @@
+{
+  "_note": "Hardware library for the data-driven TMD generator. One entry per order number. 'verified' is false until the pinout is checked against the manufacturer's manual for that exact order number; a sheet built from an unverified entry prints a PINOUT UNVERIFIED note. Channels and terminal counts come from the job's order schedule (the hardware truth for that job); the terminal-to-pin assignment is what verification covers. Order numbers are manufacturer catalogue codes, not client data. Row pitch is paper units on the A1 border per the drafting standard (digital 25-27.5, analogue 75); the generator fits the pitch to the sheet inside a bounded band.",
+
+  "families": {
+    "S7-1200G2": { "connector": "screw terminals on module", "rail": "TS 35" },
+    "S7-1500":   { "connector": "40-pin front connector 6ES7592-1BMxx-0XB0 push-in", "rail": "S7-1500 mounting rail 6ES7590-1AE80-0AA0 482mm" },
+    "ET200MP":   { "connector": "40-pin front connector", "rail": "S7-1500 mounting rail" },
+    "ADAPTER":   { "connector": "S7-300 front connector (field) to S7-1500 front connector (new)", "rail": "S7-1500 mounting rail" }
+  },
+
+  "modules": {
+    "6ES7221-1BH50-0XB0": {
+      "family": "S7-1200G2", "template": "T13", "description": "S7-1200 G2: SM1221 DI 16 x 24VDC",
+      "cardTitle": "SM1221 DI16", "kind": "DI", "channels": 16, "dir": "I",
+      "rowPitch": 26.0, "verified": false,
+      "terminals": [
+        { "pin": "1-16", "role": "channel", "note": "CH0..CH15" },
+        { "pin": "17", "role": "common", "label": "1M" },
+        { "pin": "18", "role": "supply", "label": "1L+" }
+      ],
+      "channelMap": { "0-15": "terminal 1..16" },
+      "supply": { "voltage": "24 VDC", "grouping": "one group of 16", "common": "1M", "plus": "1L+" },
+      "manual": "SIMATIC S7-1200 G2 SM 1221 digital input module - equipment manual"
+    },
+
+    "6ES7222-5BH50-0XB0": {
+      "family": "S7-1200G2", "template": "T17", "description": "S7-1200 G2: SM 1222 16 DQ 24VDC 0.5A",
+      "cardTitle": "SM1222 DQ16", "kind": "DQ", "channels": 16, "dir": "Q",
+      "rowPitch": 26.0, "verified": false,
+      "terminals": [
+        { "pin": "1-16", "role": "channel", "note": "CH0..CH15" },
+        { "pin": "17", "role": "supply", "label": "2L+" },
+        { "pin": "18", "role": "common", "label": "2M" }
+      ],
+      "channelMap": { "0-15": "terminal 1..16" },
+      "supply": { "voltage": "24 VDC", "grouping": "one group of 16", "common": "2M", "plus": "2L+" },
+      "manual": "SIMATIC S7-1200 G2 SM 1222 digital output module DC - equipment manual"
+    },
+
+    "6ES7222-5HH50-0XB0": {
+      "family": "S7-1200G2", "template": "T18", "description": "S7-1200 G2: SM1222 DQ 16 x Relay 2.0A",
+      "cardTitle": "SM1222 DQ16 RELAY", "kind": "DQ", "channels": 16, "dir": "Q",
+      "rowPitch": 26.0, "verified": false, "relay": true,
+      "terminals": [ { "pin": "relay changeover contacts", "role": "channel", "note": "dry contact per channel, no L+" } ],
+      "supply": { "voltage": "dry contact", "grouping": "relay", "common": "", "plus": "" },
+      "manual": "SIMATIC S7-1200 G2 SM 1222 digital output module RELAY - equipment manual"
+    },
+
+    "6ES7223-5BH50-0XB0": {
+      "family": "S7-1200G2", "template": "T16", "description": "S7-1200 G2: SM 1223 8DI/8DQ 24VDC",
+      "cardTitle": "SM1223 DI8/DQ8", "kind": "DIO", "channels": 16, "dir": "IQ",
+      "rowPitch": 26.0, "verified": false,
+      "terminals": [
+        { "pin": "1-8", "role": "channel", "note": "DI CH0..CH7" },
+        { "pin": "9-16", "role": "channel", "note": "DQ CH0..CH7" },
+        { "pin": "1M/1L+", "role": "supply" }, { "pin": "2M/2L+", "role": "supply" }
+      ],
+      "supply": { "voltage": "24 VDC", "grouping": "8 DI + 8 DQ", "common": "1M / 2M", "plus": "1L+ / 2L+" },
+      "manual": "SIMATIC S7-1200 G2 SM 1223 combined I/O - equipment manual"
+    },
+
+    "6ES7231-4HF50-0XB0": {
+      "family": "S7-1200G2", "template": "T01", "description": "S7-1200 G2: SM 1231 8 AI (14 bit)",
+      "cardTitle": "SM1231 AI8", "kind": "AI", "channels": 8, "dir": "I",
+      "rowPitch": 75.0, "verified": false, "analogue": true,
+      "terminals": [ { "pin": "2 per channel", "role": "channel", "note": "+ / - per channel plus reference" } ],
+      "supply": { "voltage": "24 VDC (backplane)", "grouping": "8", "common": "M", "plus": "L+" },
+      "manual": "SIMATIC S7-1200 G2 SM 1231 analogue input - equipment manual"
+    },
+
+    "6ES7212-1AG50-0XB0": {
+      "family": "S7-1200G2", "template": "T07", "description": "S7-1200 G2: CPU 1212C DC/DC/DC",
+      "cardTitle": "CPU 1212C ONBOARD I/O", "kind": "CPU", "channels": 14, "dir": "IQ",
+      "rowPitch": 26.0, "verified": false, "onboardIo": { "di": 8, "dq": 6 },
+      "terminals": [
+        { "pin": "1-8", "role": "channel", "note": "onboard DI" },
+        { "pin": "12-17", "role": "channel", "note": "onboard DQ" },
+        { "pin": "1M/1L+", "role": "supply" }, { "pin": "2L+/2M", "role": "supply" }
+      ],
+      "supply": { "voltage": "24 VDC", "grouping": "8 DI + 6 DQ", "common": "1M / 2M", "plus": "1L+ / 2L+" },
+      "manual": "SIMATIC S7-1200 G2 system manual, CPU 1212C wiring"
+    },
+
+    "6ES7214-1AH50-0XB0": {
+      "family": "S7-1200G2", "template": "T08", "description": "S7-1200 G2: CPU 1214C DC/DC/DC",
+      "cardTitle": "CPU 1214C ONBOARD I/O", "kind": "CPU", "channels": 24, "dir": "IQ",
+      "rowPitch": 26.0, "verified": false, "onboardIo": { "di": 14, "dq": 10 },
+      "terminals": [
+        { "pin": "1-14", "role": "channel", "note": "onboard DI" },
+        { "pin": "18-27", "role": "channel", "note": "onboard DQ" },
+        { "pin": "1M/1L+", "role": "supply" }, { "pin": "2L+/2M", "role": "supply" }
+      ],
+      "supply": { "voltage": "20.4-28.8 VDC", "grouping": "14 DI + 10 DQ", "common": "1M / 2M", "plus": "1L+ / 2L+" },
+      "manual": "SIMATIC S7-1200 G2 system manual, CPU 1214C wiring"
+    },
+
+    "6ES7214-1HH50-0XB0": {
+      "family": "S7-1200G2", "template": "T09", "description": "S7-1200 G2: CPU 1214C DC/DC/RLY",
+      "cardTitle": "CPU 1214C RLY ONBOARD I/O", "kind": "CPU", "channels": 24, "dir": "IQ",
+      "rowPitch": 26.0, "verified": false, "relay": true, "onboardIo": { "di": 14, "dq": 10 },
+      "terminals": [
+        { "pin": "1-14", "role": "channel", "note": "onboard DI" },
+        { "pin": "relay changeover", "role": "channel", "note": "onboard relay DQ, dry contacts" }
+      ],
+      "supply": { "voltage": "24 VDC", "grouping": "14 DI + 10 relay DQ", "common": "1M", "plus": "1L+" },
+      "manual": "SIMATIC S7-1200 G2 system manual, CPU 1214C relay variant"
+    },
+
+    "6ES7521-1BL00-0AB0": {
+      "family": "S7-1500", "template": "T14", "description": "S7-1500 DI 32x24VDC HF",
+      "cardTitle": "DI32 24VDC HF", "kind": "DI", "channels": 32, "dir": "I",
+      "rowPitch": 26.0, "verified": true,
+      "terminals": [
+        { "pin": "1-8", "role": "channel", "note": "CH0..CH7" },
+        { "pin": "11-18", "role": "channel", "note": "CH8..CH15" },
+        { "pin": "19", "role": "supply", "label": "1L+" },
+        { "pin": "20", "role": "common", "label": "1M" },
+        { "pin": "21-28", "role": "channel", "note": "CH16..CH23" },
+        { "pin": "31-38", "role": "channel", "note": "CH24..CH31" },
+        { "pin": "39", "role": "supply", "label": "2L+" },
+        { "pin": "40", "role": "common", "label": "2M" }
+      ],
+      "channelMap": { "0-7": "1-8", "8-15": "11-18", "16-23": "21-28", "24-31": "31-38" },
+      "unusedPins": [9, 10, 29, 30],
+      "supply": { "voltage": "24 VDC", "grouping": "2 groups of 16", "common": "1M, 2M", "plus": "1L+, 2L+", "jumpers": "19-39 and 20-40 for common supply, 8 A max per jumper" },
+      "manual": "Equipment Manual A5E03485935-AH, 05/2022, Fig 3-1 p17, Fig 3-3 p18 (SIOS 59192896)"
+    },
+
+    "6ES7522-1BL01-0AB0": {
+      "family": "S7-1500", "template": "T19", "description": "S7-1500 DQ 32x24VDC/0.5A HF",
+      "cardTitle": "DQ32 24VDC", "kind": "DQ", "channels": 32, "dir": "Q",
+      "rowPitch": 26.0, "verified": true,
+      "terminals": [
+        { "pin": "1-8", "role": "channel", "note": "CH0..CH7" },
+        { "pin": "9", "role": "supply", "label": "1L+" }, { "pin": "10", "role": "common", "label": "1M" },
+        { "pin": "11-18", "role": "channel", "note": "CH8..CH15" },
+        { "pin": "19", "role": "supply", "label": "2L+" }, { "pin": "20", "role": "common", "label": "2M" },
+        { "pin": "21-28", "role": "channel", "note": "CH16..CH23" },
+        { "pin": "29", "role": "supply", "label": "3L+" }, { "pin": "30", "role": "common", "label": "3M" },
+        { "pin": "31-38", "role": "channel", "note": "CH24..CH31" },
+        { "pin": "39", "role": "supply", "label": "4L+" }, { "pin": "40", "role": "common", "label": "4M" }
+      ],
+      "channelMap": { "0-7": "1-8", "8-15": "11-18", "16-23": "21-28", "24-31": "31-38" },
+      "supply": { "voltage": "24 VDC", "grouping": "4 groups of 8", "common": "1M 2M 3M 4M", "plus": "1L+ 2L+ 3L+ 4L+", "jumpers": "9-29,10-30,19-39,20-40 then 29-39,30-40; 8 A max" },
+      "manual": "Manual A5E35683508-AC, 06/2018, Fig 3-1 p15, Fig 3-2 p16 (SIOS 109480716)"
+    },
+
+    "6ES7522-5HH00-0AB0": {
+      "family": "S7-1500", "template": "T20", "description": "S7-1500 DQ 16x230VAC/2A",
+      "cardTitle": "DQ16 230VAC", "kind": "DQ", "channels": 16, "dir": "Q",
+      "rowPitch": 26.0, "verified": false, "mains": true,
+      "terminals": [ { "pin": "40-pin connector", "role": "channel", "note": "4 groups of 4, L1/N per group" } ],
+      "supply": { "voltage": "230 VAC", "grouping": "4 groups of 4", "common": "N", "plus": "L1" },
+      "manual": "Equipment Manual 6ES7522-5HH00-0AB0 DQ 16x230VAC"
+    },
+
+    "6ES7531-7NF00-0AB0": {
+      "family": "S7-1500", "template": "T03", "description": "S7-1500 AI 8xU/I HF 24bit",
+      "cardTitle": "AI8 U/I HF", "kind": "AI", "channels": 8, "dir": "I",
+      "rowPitch": 75.0, "verified": false, "analogue": true,
+      "terminals": [ { "pin": "40-pin connector", "role": "channel", "note": "2 pins per channel plus group reference" } ],
+      "supply": { "voltage": "24 VDC (backplane)", "grouping": "8", "common": "M", "plus": "L+" },
+      "manual": "Equipment Manual 6ES7531-7NF00-0AB0 AI 8xU/I HF"
+    },
+
+    "6ES7531-7QF00-0AB0": {
+      "family": "S7-1500", "template": "T04", "description": "S7-1500 AI 8xU/I/R/RTD",
+      "cardTitle": "AI8 U/I/R/RTD", "kind": "AI", "channels": 8, "dir": "I",
+      "rowPitch": 75.0, "verified": false, "analogue": true, "rtd": true,
+      "terminals": [ { "pin": "40-pin connector", "role": "channel", "note": "RTD 2/3/4-wire per channel" } ],
+      "supply": { "voltage": "24 VDC (backplane)", "grouping": "8", "common": "M", "plus": "L+" },
+      "manual": "Equipment Manual 6ES7531-7QF00-0AB0"
+    },
+
+    "6ES7531-7MH00-0AB0": {
+      "family": "S7-1500", "template": "T02", "description": "S7-1500 AI 16xI BA",
+      "cardTitle": "AI16 I BA", "kind": "AI", "channels": 16, "dir": "I",
+      "rowPitch": 75.0, "verified": false, "analogue": true,
+      "terminals": [ { "pin": "40-pin connector", "role": "channel", "note": "2 pins per channel" } ],
+      "supply": { "voltage": "24 VDC (backplane)", "grouping": "16", "common": "M", "plus": "L+" },
+      "manual": "Equipment Manual 6ES7531-7MH00-0AB0 AI 16xI BA"
+    },
+
+    "6ES7513-1AM03-0AB0": { "family": "S7-1500", "template": "T10", "description": "S7-1500 CPU 1513-1 PN", "cardTitle": "CPU 1513-1 PN", "kind": "CPUNOIO", "channels": 0, "dir": "", "rowPitch": 26.0, "verified": false, "manual": "CPU 1513-1 PN equipment manual" },
+    "6ES7515-2AN03-0AB0": { "family": "S7-1500", "template": "T11", "description": "S7-1500 CPU 1515-2 PN", "cardTitle": "CPU 1515-2 PN", "kind": "CPUNOIO", "channels": 0, "dir": "", "rowPitch": 26.0, "verified": false, "manual": "CPU 1515-2 PN equipment manual" },
+    "6ES7517-4HQ10-0AB0": { "family": "S7-1500", "template": "T12", "description": "S7-1500H CPU 1517H-2 PN", "cardTitle": "CPU 1517H", "kind": "CPUNOIO", "channels": 0, "dir": "", "rowPitch": 26.0, "verified": false, "manual": "CPU 1517H-2 PN equipment manual (03 Manuals)" },
+
+    "6ES7541-1AB01-0AB0": { "family": "S7-1500", "template": "T39", "description": "S7-1500 CM PtP RS422/485 HF", "cardTitle": "CM PTP HF", "kind": "COMMS", "channels": 1, "dir": "", "rowPitch": 26.0, "verified": false, "serial": { "connector": "9-pin D-sub", "modes": ["RS422", "RS485"] }, "manual": "CM PtP HF equipment manual" },
+    "6ES7540-1AB01-0AA0": { "family": "S7-1500", "template": "T38", "description": "S7-1500 CM PtP RS422/485 BA", "cardTitle": "CM PTP BA", "kind": "COMMS", "channels": 1, "dir": "", "rowPitch": 26.0, "verified": false, "serial": { "connector": "9-pin D-sub", "modes": ["RS422", "RS485"] }, "manual": "CM PtP BA equipment manual" },
+    "6ES7241-1EA50-0XB0": { "family": "S7-1200G2", "template": "T37", "description": "CM 1241 Comm Module RS232/422/485", "cardTitle": "CM1241 SERIAL", "kind": "COMMS", "channels": 1, "dir": "", "rowPitch": 26.0, "verified": false, "serial": { "connector": "9-pin D-sub", "modes": ["RS232", "RS422", "RS485"] }, "manual": "CM 1241 equipment manual" },
+    "6ES7155-5MU00-0CN0": { "family": "ET200MP", "template": "T23", "description": "ET 200MP IM 155-5 MF HF", "cardTitle": "IM 155-5 MF HF", "kind": "INTERFACE", "channels": 0, "dir": "", "rowPitch": 26.0, "verified": true, "supply": { "voltage": "24 VDC", "grouping": "X80", "common": "1M, 2M", "plus": "1L+, 2L+" }, "manual": "A5E53268530-AD 11/2025 s7.1 T7-1 p76 (SIOS 109826205)" },
+    "6ES7155-5AA00-0AA0": { "family": "ET200MP", "template": "T33", "description": "ET 200MP P/NET OI interface module", "cardTitle": "P/NET OI MODULE", "kind": "INTERFACE", "channels": 0, "dir": "", "rowPitch": 26.0, "verified": false, "manual": "P/NET OI interface module manual" },
+    "6ES7193-6AR00-0AA0": { "family": "ACCESSORY", "template": "T24", "description": "ET 200SP BusAdapter BA 2xRJ45", "cardTitle": "BUS ADAPTER", "kind": "COMMS", "channels": 0, "dir": "", "rowPitch": 26.0, "verified": false, "sheet": "comms", "manual": "ET 200SP BusAdapter manual" },
+
+    "6EZ2041-8HR11-0DE0": { "family": "ADAPTER", "template": "T15", "description": "Adaptor S7-300 to S7-1500, DI 32x24VDC HF", "cardTitle": "ADAPTOR DI32 HF", "kind": "DI", "channels": 32, "dir": "I", "rowPitch": 26.0, "verified": false, "adapterFor": "6ES7521-1BL00-0AB0", "existingModule": "6ES7321-1BL00-0AA0", "manual": "Interface Module Adapter v7 08/2023 p28 (SIOS 83557459); S7-300 Module data A5E00105505-AK p64" },
+    "6EZ2041-8HR11-0DA0": { "family": "ADAPTER", "template": "T21", "description": "Adaptor S7-300 to S7-1500, DQ 32x24VDC/0.5A HF", "cardTitle": "ADAPTOR DQ32 HF", "kind": "DQ", "channels": 32, "dir": "Q", "rowPitch": 26.0, "verified": false, "adapterFor": "6ES7522-1BL01-0AB0", "existingModule": "6ES7322-1BL00-0AA0", "manual": "Interface Module Adapter v7 08/2023 p28 (SIOS 83557459); S7-300 Module data A5E00105505-AK p120" },
+    "6EZ2041-8HR11-1AE0": { "family": "ADAPTER", "template": "T05", "description": "Adaptor S7-300 to S7-1500, AI 8xU/I/RTD/TC ST", "cardTitle": "ADAPTOR AI8 ST", "kind": "AI", "channels": 8, "dir": "I", "rowPitch": 75.0, "verified": false, "analogue": true, "adapterFor": "6ES7531-7QF00-0AB0", "manual": "Interface Module Adapter v7 08/2023 p28 (SIOS 83557459)" },
+    "6EZ2041-8HR11-4AE0": { "family": "ADAPTER", "template": "T06", "description": "Adaptor S7-300 to S7-1500, RTD", "cardTitle": "ADAPTOR RTD", "kind": "AI", "channels": 8, "dir": "I", "rowPitch": 75.0, "verified": false, "analogue": true, "rtd": true, "adapterFor": "6ES7531-7QF00-0AB0", "manual": "Interface Module Adapter v7 08/2023 p28 (SIOS 83557459)" },
+
+    "6EP1333-4BA00": { "family": "POWER", "template": "T34", "description": "PM1507 S7-1500 PSU 120/230VAC/24VDC 8A", "cardTitle": "PM1507 PSU", "kind": "PSU", "channels": 0, "dir": "", "rowPitch": 26.0, "verified": false, "sheet": "power", "manual": "PM1507 manual" },
+    "6EP3233-0TA10-0AY0": { "family": "POWER", "template": "T35", "description": "SITOP PSU3400 24 V/3.5 A", "cardTitle": "SITOP PSU3400", "kind": "PSU", "channels": 0, "dir": "", "rowPitch": 26.0, "verified": false, "sheet": "power", "manual": "SITOP PSU3400 manual" },
+    "6ES7505-0RA00-0AB0": { "family": "POWER", "template": "T36", "description": "S7-1500 PS 60W 24/48/60VDC", "cardTitle": "PS 60W DC", "kind": "PSU", "channels": 0, "dir": "", "rowPitch": 26.0, "verified": false, "sheet": "power", "manual": "S7-1500 system power supply manual" },
+
+    "6AV2128-3QB06-0AX1": { "family": "HMI", "template": "T22", "description": "SIMATIC HMI MTP1500", "cardTitle": "HMI MTP1500", "kind": "HMI", "channels": 0, "dir": "", "rowPitch": 26.0, "verified": false, "sheet": "comms", "manual": "MTP panel manual" },
+    "6GK5204-2AA00-2YF2": { "family": "NETWORK", "template": "T27", "description": "SCALANCE XF204-2BA DNA managed switch", "cardTitle": "XF204-2BA DNA", "kind": "SWITCH", "channels": 0, "dir": "", "rowPitch": 26.0, "verified": false, "sheet": "comms", "ports": { "rj45": 4, "sfp": 2, "busadapter": 2 }, "manual": "SCALANCE XF204-2BA DNA manual" },
+    "6GK5206-2BS00-2AC2": { "family": "NETWORK", "template": "T28", "description": "SCALANCE XC206-2SFP managed switch", "cardTitle": "XC206-2SFP", "kind": "SWITCH", "channels": 0, "dir": "", "rowPitch": 26.0, "verified": false, "sheet": "comms", "ports": { "rj45": 6, "sfp": 2 }, "manual": "SCALANCE XC200 manual" },
+    "6GK5208-0BA00-2AB2": { "family": "NETWORK", "template": "T29", "description": "SCALANCE XB208 8x10/100", "cardTitle": "XB208", "kind": "SWITCH", "channels": 0, "dir": "", "rowPitch": 26.0, "verified": false, "sheet": "comms", "ports": { "rj45": 8 }, "manual": "SCALANCE XB208 manual" },
+    "6GK7243-1BX50-0AP1": { "family": "NETWORK", "template": "T30", "description": "CP 1243-1 G2 4G mobile radio bundle", "cardTitle": "CP1243-1 4G", "kind": "COMMS", "channels": 0, "dir": "", "rowPitch": 26.0, "verified": false, "sheet": "comms", "manual": "CP 1243-1 G2 manual" },
+    "6GK7277-1AA50-0AA0": { "family": "NETWORK", "template": "T31", "description": "CSM 1277 G2 compact switch module", "cardTitle": "CSM1277", "kind": "SWITCH", "channels": 0, "dir": "", "rowPitch": 26.0, "verified": false, "sheet": "comms", "ports": { "rj45": 4 }, "manual": "CSM 1277 G2 manual" },
+    "6GK5992-1AM01-8AA0": { "family": "NETWORK", "template": "T32", "description": "B-SFP992-1LD transceiver", "cardTitle": "SFP TRANSCEIVER", "kind": "ACCESSORY", "channels": 0, "dir": "", "rowPitch": 26.0, "verified": false, "sheet": "none", "manual": "SCALANCE X accessories" },
+    "6ES7590-1AE80-0AA0": { "family": "MECHANICAL", "template": "T25", "description": "S7-1500 mounting rail 482mm", "cardTitle": "MOUNTING RAIL", "kind": "MECH", "channels": 0, "dir": "", "rowPitch": 26.0, "verified": true, "sheet": "none", "manual": "order schedule" },
+    "6EZ2041-8UG00-0BG0": { "family": "MECHANICAL", "template": "T26", "description": "Interface module adapter mounting bracket set", "cardTitle": "ADAPTOR BRACKET", "kind": "MECH", "channels": 0, "dir": "", "rowPitch": 26.0, "verified": true, "sheet": "none", "manual": "SIOS 83557459" }
+  },
+
+  "cardTitleAliases": {
+    "_note": "The register's TMD titles use short card names; the order schedule uses order numbers. This maps the title text to the order number so a sheet knows which module to draw. Matched case-insensitively, longest key first.",
+    "SM1221 DI16": "6ES7221-1BH50-0XB0",
+    "SM1222 DQ16 RELAY": "6ES7222-5HH50-0XB0",
+    "SM1222 DQ16": "6ES7222-5BH50-0XB0",
+    "SM1223 DI8/DQ8": "6ES7223-5BH50-0XB0",
+    "SM1231 AI8": "6ES7231-4HF50-0XB0",
+    "CPU 1212C ONBOARD I/O": "6ES7212-1AG50-0XB0",
+    "CPU 1214C RLY ONBOARD I/O": "6ES7214-1HH50-0XB0",
+    "CPU 1214C ONBOARD I/O": "6ES7214-1AH50-0XB0",
+    "DI32 24VDC HF": "6ES7521-1BL00-0AB0",
+    "DQ32 24VDC": "6ES7522-1BL01-0AB0",
+    "DQ16 230VAC": "6ES7522-5HH00-0AB0",
+    "AI8 U/I HF": "6ES7531-7NF00-0AB0",
+    "AI8 U/I/R/RTD": "6ES7531-7QF00-0AB0",
+    "AI16 I BA": "6ES7531-7MH00-0AB0",
+    "ADAPTOR DI32": "6EZ2041-8HR11-0DE0",
+    "ADAPTOR DQ32": "6EZ2041-8HR11-0DA0"
+  }
+}
