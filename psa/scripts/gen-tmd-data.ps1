@@ -367,29 +367,18 @@ if ($sheetKind -eq 'card') {
         $blocksByDir[$dk] = @{ Rows = $rowsD; Starts = $starts; Ends = $ends; Owner = $ownerOf }
     }
 
-    # A block belongs to the sheet that owns it, recorded when the blocks were cut. Blocks are numbered
-    # per direction in the register's card order, so the sheet's own instance is its block index.
+    # A block belongs to the sheet recorded as its owner when the blocks were cut, walking the
+    # register's cards in order. Selecting by owner (not by re-deriving a block index from the sheet's
+    # instance) is what makes a combined DI/DQ card work: an SM 1223 spans both directions, and
+    # indexing each direction's list by its own instance handed it block 0 of each -- the CPU's rows,
+    # redrawn. The owner was decided once, in order, so it is already right.
     $sel = New-Object System.Collections.Generic.List[object]
-    $wantI = ($dirWanted -eq 'I' -or $dirWanted -eq 'IQ')
-    $wantQ = ($dirWanted -eq 'Q' -or $dirWanted -eq 'IQ')
     foreach ($dk in $dirKeys) {
         $bd = $blocksByDir[$dk]
-        if ($dk -eq 'I' -and -not $wantI) { continue }
-        if ($dk -eq 'Q' -and -not $wantQ) { continue }
-        # Which block of this direction is this sheet's: the blocks of this direction, in the register's
-        # order, numbered from 1 across the sheets that claim this direction.
-        $ordinal = 0
-        foreach ($cs in ($cardSheets | Sort-Object Seq)) {
-            if (-not ($cs.Dir -eq $dk -or $cs.Dir -eq 'IQ')) { continue }
-            $ordinal++
-            if ($cs.Number -eq $myNumber) { break }
+        for ($bi = 0; $bi -lt $bd.Starts.Count; $bi++) {
+            if ([string]$bd.Owner[$bi] -ne $myNumber) { continue }
+            for ($k = $bd.Starts[$bi]; $k -le $bd.Ends[$bi]; $k++) { $sel.Add($bd.Rows[$k]) }
         }
-        # A combined card (dir IQ) spans both directions and its own instance does not index either
-        # direction's block list on its own; it takes the first block of each.
-        $bi = $ordinal - 1
-        if ($dirWanted -eq 'IQ') { $bi = [int]$row.Instance - 1 }
-        if ($bi -lt 0 -or $bi -ge $bd.Starts.Count) { continue }
-        for ($k = $bd.Starts[$bi]; $k -le $bd.Ends[$bi]; $k++) { $sel.Add($bd.Rows[$k]) }
     }
     $cardSignals = @($sel.ToArray())
 

@@ -49,7 +49,7 @@
     "6ES7223-5BH50-0XB0": {
       "family": "S7-1200G2", "template": "T16", "description": "S7-1200 G2: SM 1223 8DI/8DQ 24VDC",
       "cardTitle": "SM1223 DI8/DQ8", "kind": "DIO", "channels": 16, "dir": "IQ",
-      "rowPitch": 26.0, "verified": false,
+      "rowPitch": 26.0, "verified": false, "onboardIo": { "di": 8, "dq": 8 },
       "terminals": [
         { "pin": "1-8", "role": "channel", "note": "DI CH0..CH7" },
         { "pin": "9-16", "role": "channel", "note": "DQ CH0..CH7" },
