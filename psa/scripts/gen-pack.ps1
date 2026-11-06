@@ -83,12 +83,16 @@ foreach ($row in $sel) {
     $rev = [string]$row.Revision
     if (-not $rev) { $rev = 'A' }
     $outDwg = Join-Path $OutDir ($num + '_' + $rev + '.dwg')
-    # The generator depends on the discipline. TMD builds a termination table from the I/O list; GAD
-    # builds a placement diagram from the order schedule; SCD builds a power-distribution schematic from
-    # the order schedule's power devices. The I/O signal schematic (the other SCD half) has no producer.
+    # The generator depends on the discipline, and within SCD on the sheet's own title. TMD builds a
+    # termination table from the I/O list; GAD builds a placement diagram from the order schedule; SCD
+    # splits into a power-distribution schematic (a radial tree) and a panel earthing schematic (an
+    # earth bar with a way per earthed item), both from the order schedule's devices.
     $gen = Join-Path $sheetsDir 'gen-tmd-data.ps1'
     if ($Discipline -eq 'GAD') { $gen = Join-Path $sheetsDir 'gen-gad-data.ps1' }
-    elseif ($Discipline -eq 'SCD') { $gen = Join-Path $sheetsDir 'gen-scd-power.ps1' }
+    elseif ($Discipline -eq 'SCD') {
+        if (([string]$row.Title) -match 'POWER DISTRIBUTION') { $gen = Join-Path $sheetsDir 'gen-scd-power.ps1' }
+        else { $gen = Join-Path $sheetsDir 'gen-scd-earth.ps1' }
+    }
 
     $args1 = @(
         '-Template', $Template,
@@ -98,14 +102,9 @@ foreach ($row in $sel) {
         '-DrawingNumber', $num
     )
     if ($Discipline -eq 'GAD' -or $Discipline -eq 'SCD') {
-        # A GA and a power schematic read the order schedule, not the I/O signal table.
+        # A GA and both schematic kinds read the order schedule, not the I/O signal table.
         if (-not $OrderScheduleCsv -or -not (Test-Path -LiteralPath $OrderScheduleCsv)) {
             Write-Warning "$num : $Discipline needs -OrderScheduleCsv; skipping"
-            continue
-        }
-        # A power-distribution schematic only; the I/O signal schematic has no producer, so skip it.
-        if ($Discipline -eq 'SCD' -and ([string]$row.Title) -notmatch 'POWER DISTRIBUTION') {
-            Write-Host ("{0}  {1,-16} SKIPPED (I/O signal schematic has no producer)" -f $num, [string]$row.Station)
             continue
         }
         $args1 += @('-OrderScheduleCsv', $OrderScheduleCsv)

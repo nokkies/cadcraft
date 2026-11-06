@@ -299,13 +299,15 @@ Emit-Text $originX 508.0 'PANEL POWER DISTRIBUTION SCHEMATIC' $hHead '5T' 'L'
 Emit-Text $originX 500.0 "$number  -  $station" $hLabel '5T' 'L'
 
 # --- AC section --------------------------------------------------------------------
-Emit-Text $originX ($acBusY + 22.0) '240VAC SUPPLY AND DISTRIBUTION' $hLabel '2T' 'L'
+# The section title sits on its own line clear of the input labels below it. The first version put the
+# section title and the A1/N1 labels at nearly the same y and x, so they rendered on top of each other.
+Emit-Text $originX ($acBusY + 26.0) '240VAC SUPPLY AND DISTRIBUTION' $hLabel '2T' 'L'
 # supply input: A1 / N1 / E into an SPD and a main switch, then the bus
 $inX = $originX
-Emit-Text $inX ($acBusY + 18.0) 'A1' $hLabel '1T' 'L'
-Emit-Text ($inX + 14.0) ($acBusY + 18.0) 'N1' $hLabel '1T' 'L'
-Emit-Line ($inX + 3.0) ($acBusY + 16.0) ($inX + 3.0) $acBusY '1C'
-Emit-Line ($inX + 17.0) ($acBusY + 16.0) ($inX + 17.0) $acBusY '1C'
+Emit-Text $inX ($acBusY + 14.0) 'A1' $hLabel '1T' 'L'
+Emit-Text ($inX + 14.0) ($acBusY + 14.0) 'N1' $hLabel '1T' 'L'
+Emit-Line ($inX + 3.0) ($acBusY + 12.0) ($inX + 3.0) $acBusY '1C'
+Emit-Line ($inX + 17.0) ($acBusY + 12.0) ($inX + 17.0) $acBusY '1C'
 Emit-Earth ($inX + 30.0) ($acBusY + 12.0) '1C'
 # main switch on the live line
 $swTag = 'Q1'
