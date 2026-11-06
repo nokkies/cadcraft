@@ -84,9 +84,11 @@ foreach ($row in $sel) {
     if (-not $rev) { $rev = 'A' }
     $outDwg = Join-Path $OutDir ($num + '_' + $rev + '.dwg')
     # The generator depends on the discipline. TMD builds a termination table from the I/O list; GAD
-    # builds a placement diagram from the order schedule. SCD (a wired schematic) has no producer yet.
+    # builds a placement diagram from the order schedule; SCD builds a power-distribution schematic from
+    # the order schedule's power devices. The I/O signal schematic (the other SCD half) has no producer.
     $gen = Join-Path $sheetsDir 'gen-tmd-data.ps1'
     if ($Discipline -eq 'GAD') { $gen = Join-Path $sheetsDir 'gen-gad-data.ps1' }
+    elseif ($Discipline -eq 'SCD') { $gen = Join-Path $sheetsDir 'gen-scd-power.ps1' }
 
     $args1 = @(
         '-Template', $Template,
@@ -95,10 +97,15 @@ foreach ($row in $sel) {
         '-PlanCsv', $PlanCsv,
         '-DrawingNumber', $num
     )
-    if ($Discipline -eq 'GAD') {
-        # A GA needs the order schedule (the modules to place), not the I/O signal table.
+    if ($Discipline -eq 'GAD' -or $Discipline -eq 'SCD') {
+        # A GA and a power schematic read the order schedule, not the I/O signal table.
         if (-not $OrderScheduleCsv -or -not (Test-Path -LiteralPath $OrderScheduleCsv)) {
-            Write-Warning "$num : GAD needs -OrderScheduleCsv; skipping"
+            Write-Warning "$num : $Discipline needs -OrderScheduleCsv; skipping"
+            continue
+        }
+        # A power-distribution schematic only; the I/O signal schematic has no producer, so skip it.
+        if ($Discipline -eq 'SCD' -and ([string]$row.Title) -notmatch 'POWER DISTRIBUTION') {
+            Write-Host ("{0}  {1,-16} SKIPPED (I/O signal schematic has no producer)" -f $num, [string]$row.Station)
             continue
         }
         $args1 += @('-OrderScheduleCsv', $OrderScheduleCsv)
